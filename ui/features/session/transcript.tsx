@@ -15,15 +15,7 @@ import {
 import { createContext } from "preact";
 import { useContext, useEffect, useMemo, useState } from "preact/hooks";
 import type { AgentRun, NoteStep, Step, ToolStep, Turn } from "../../../src/core/types.js";
-import {
-  between,
-  describeCall,
-  firstLine,
-  formatClock,
-  formatDuration,
-  kindOf,
-  plural,
-} from "../../shared/format.js";
+import { between, firstLine, formatClock, formatDuration, plural } from "../../shared/format.js";
 import { StatusIcon, ToolIcon } from "../../shared/icons.js";
 import { renderInline, renderMarkdown } from "../../shared/markdown.js";
 
@@ -145,7 +137,7 @@ function groupSteps(steps: Step[]): Item[] {
   for (const step of steps) {
     const quiet =
       step.kind === "tool" &&
-      kindOf(step.name) === "look" &&
+      step.action.kind === "look" &&
       !step.agent &&
       step.result?.status !== "error";
     // A look-up that comes with its own reason starts a new group, so the reason stays visible.
@@ -199,18 +191,19 @@ export function ToolStepRow({ step }: { step: ToolStep }) {
   useEffect(() => {
     if (target?.id === step.id) setOpen(true);
   }, [target]);
-  const { verb, detail } = describeCall(step.name, step.summary);
+  const { verb } = step.action;
+  const detail = step.action.detail ?? step.summary;
   const status = step.result?.status ?? "pending";
 
   return (
     <div
       class={`step ${open ? "open" : ""}`}
       id={stepDomId(step.id)}
-      data-kind={kindOf(step.name)}
+      data-kind={step.action.kind}
       data-failed={status === "error" || undefined}
     >
       <span class="node" aria-hidden="true">
-        <ToolIcon name={step.name} />
+        <ToolIcon icon={step.action.icon} />
       </span>
       <div class="step-body">
         {step.why && <Why text={step.why} open={open} />}
@@ -241,7 +234,9 @@ function GroupStep({ steps }: { steps: ToolStep[] }) {
     if (target && !open && steps.some((s) => s.id === target.id)) setOpen(true);
   }, [target]);
 
-  const reads = steps.filter((s) => s.name === "Read").length;
+  const reads = steps.filter((step) =>
+    step.action.files?.some((file) => file.operation === "read"),
+  ).length;
   const searches = steps.length - reads;
   const label = [
     reads && `Read ${plural(reads, "file")}`,
@@ -250,7 +245,11 @@ function GroupStep({ steps }: { steps: ToolStep[] }) {
     .filter(Boolean)
     .join(" and ");
   const names = steps
-    .map((s) => (s.name === "Read" ? s.summary.split("/").pop() : s.summary))
+    .map((s) =>
+      s.action.files?.some((file) => file.operation === "read")
+        ? s.summary.split("/").pop()
+        : s.summary,
+    )
     .join(", ");
   const total = steps.reduce((sum, s) => sum + (s.durationMs ?? 0), 0);
 
@@ -281,24 +280,20 @@ function GroupStep({ steps }: { steps: ToolStep[] }) {
 }
 
 export function CallDetails({ step }: { step: ToolStep }) {
-  const input = (step.input ?? {}) as Record<string, unknown>;
+  const { command, replacement } = step.action;
   let inputView;
-  if (step.name === "Bash" && typeof input.command === "string") {
-    inputView = <pre class="code">{input.command}</pre>;
-  } else if (
-    step.name === "Edit" &&
-    typeof input.old_string === "string" &&
-    typeof input.new_string === "string"
-  ) {
+  if (command !== undefined) {
+    inputView = <pre class="code">{command}</pre>;
+  } else if (replacement) {
     inputView = (
       <pre class="code diff">
-        {input.old_string.split("\n").map((l, i) => (
+        {replacement.before.split("\n").map((l, i) => (
           <span key={`o${i}`} class="removed">
             - {l}
             {"\n"}
           </span>
         ))}
-        {input.new_string.split("\n").map((l, i) => (
+        {replacement.after.split("\n").map((l, i) => (
           <span key={`n${i}`} class="added">
             + {l}
             {"\n"}
@@ -313,7 +308,7 @@ export function CallDetails({ step }: { step: ToolStep }) {
   return (
     <div class="call-details">
       <div class="detail-label">
-        {step.name === "Bash" ? "Command" : step.name === "Edit" ? "Change" : "Input"}
+        {command !== undefined ? "Command" : replacement ? "Change" : "Input"}
       </div>
       {inputView}
       <div class="detail-label">

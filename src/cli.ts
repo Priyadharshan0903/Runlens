@@ -5,19 +5,21 @@ import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { defaultRoots, listSessions } from "./core/discover.js";
+import { listSessions } from "./core/discover.js";
+import { sourceReaders } from "./sources/index.js";
 import { createServer } from "./server.js";
 
 declare const __VERSION__: string;
 
-const HELP = `runlens: see what your Claude Code agents actually did
+const HELP = `runlens: inspect your local agent sessions
 
 Usage
   npx runlens [options]
 
 Options
-  --dir <path>   A Claude Code "projects" folder to read (repeatable).
-                 Default: $CLAUDE_CONFIG_DIR/projects and ~/.claude/projects
+  --dir <path>   Read only these Claude Code "projects" folders (repeatable).
+                 Default: $CLAUDE_CONFIG_DIR/projects, ~/.claude/projects,
+                 and existing ~/.claude-accounts/*/projects folders
   --port <n>     Port to listen on (default 8740; the next free one is used if taken)
   --no-open      Don't open the browser
   -v, --version  Print the version
@@ -39,24 +41,34 @@ async function main() {
   if (values.help) return console.log(HELP);
   if (values.version) return console.log(__VERSION__);
 
-  const roots = values.dir?.length ? values.dir.map((d) => resolve(d)) : defaultRoots();
+  const sources = sourceReaders.map((reader) => ({
+    reader,
+    roots:
+      reader.source.id === "claude" && values.dir?.length
+        ? values.dir.map((dir) => resolve(dir))
+        : reader.defaultRoots(),
+  }));
+  const roots = sources.flatMap((source) => source.roots);
   const missing = roots.filter((r) => !existsSync(r));
   if (missing.length) fail(`Folder not found: ${missing.join(", ")}`);
   if (!roots.length)
-    fail("No Claude Code sessions folder found. Pass one with --dir ~/.claude/projects");
+    fail("No session folders found. For Claude Code, pass --dir ~/.claude/projects");
 
   const port = Number(values.port);
   if (!Number.isInteger(port) || port < 1 || port > 65535) fail(`Invalid port: ${values.port}`);
 
-  const { sessions } = await listSessions(roots);
+  const { sessions } = await listSessions(sources);
   const uiDir = join(dirname(fileURLToPath(import.meta.url)), "ui");
-  const server = createServer({ roots, uiDir });
+  const server = createServer({ sources, uiDir });
   const actualPort = await listen(server, port);
   const url = `http://127.0.0.1:${actualPort}/`;
 
   console.log(
-    `✔ Found ${sessions.length} Claude Code sessions in ${roots.length} folder${roots.length === 1 ? "" : "s"}`,
+    `✔ Found ${sessions.length} sessions in ${roots.length} folder${roots.length === 1 ? "" : "s"}`,
   );
+  for (const { reader, roots: sourceRoots } of sources) {
+    for (const root of sourceRoots) console.log(`  ${reader.source.name}: ${root}`);
+  }
   console.log(`✔ Viewer running at ${url}`);
   console.log("  Press Ctrl+C to stop.");
   if (!values["no-open"]) openBrowser(url);

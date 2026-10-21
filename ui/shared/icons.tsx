@@ -20,31 +20,27 @@ import {
   FilePlusIcon,
   type Icon,
 } from "@phosphor-icons/react";
-import type { ToolStatus } from "../../src/core/types.js";
+import type { ToolStatus, ToolIconName } from "../../src/core/types.js";
 
-const TOOL_ICONS: Record<string, Icon> = {
-  Read: FileTextIcon,
-  Grep: MagnifyingGlassIcon,
-  Glob: FilesIcon,
-  LS: FilesIcon,
-  Edit: PencilSimpleLineIcon,
-  MultiEdit: PencilSimpleLineIcon,
-  NotebookEdit: PencilSimpleLineIcon,
-  Write: FilePlusIcon,
-  Bash: TerminalWindowIcon,
-  BashOutput: TerminalWindowIcon,
-  KillShell: TerminalWindowIcon,
-  Agent: RobotIcon,
-  Task: RobotIcon,
-  Skill: MagicWandIcon,
-  WebSearch: GlobeIcon,
-  WebFetch: LinkIcon,
-  TodoWrite: ListChecksIcon,
-  ToolSearch: ToolboxIcon,
+const TOOL_ICONS: Record<ToolIconName, Icon> = {
+  file: FileTextIcon,
+  search: MagnifyingGlassIcon,
+  files: FilesIcon,
+  edit: PencilSimpleLineIcon,
+  write: FilePlusIcon,
+  terminal: TerminalWindowIcon,
+  agent: RobotIcon,
+  skill: MagicWandIcon,
+  web: GlobeIcon,
+  link: LinkIcon,
+  todo: ListChecksIcon,
+  tools: ToolboxIcon,
+  mcp: PlugIcon,
+  other: WrenchIcon,
 };
 
-export function ToolIcon({ name, size = 16 }: { name: string; size?: number }) {
-  const Component = name.startsWith("mcp__") ? PlugIcon : (TOOL_ICONS[name] ?? WrenchIcon);
+export function ToolIcon({ icon, size = 16 }: { icon: ToolIconName; size?: number }) {
+  const Component = TOOL_ICONS[icon];
   return <Component size={size} weight="regular" aria-hidden="true" />;
 }
 

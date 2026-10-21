@@ -1,12 +1,16 @@
 import { request } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { claudeReader } from "../src/sources/claude/reader.js";
 import { createServer } from "../src/server.js";
 import { makeProjectsRoot, prompt, say } from "./helpers.js";
 
 const p = makeProjectsRoot();
 p.writeSession("s1", [prompt("hello"), say("hi")]);
-const server = createServer({ roots: [p.root], uiDir: "/nonexistent" });
+const server = createServer({
+  sources: [{ reader: claudeReader, roots: [p.root] }],
+  uiDir: "/nonexistent",
+});
 let port = 0;
 
 beforeAll(
@@ -47,7 +51,12 @@ describe("server", () => {
   });
 
   it("only serves listed sessions and plain asset names", async () => {
-    expect((await get("/api/sessions/does-not-exist")).status).toBe(404);
+    const missing = await get("/api/sessions/does-not-exist");
+    expect(missing.status).toBe(404);
+    const body = JSON.parse(missing.body);
+    expect(body.roots).toEqual([p.root]);
+    expect(body.error).toContain(p.root);
+    expect(body.error).toContain("--dir <path>");
     expect((await get("/api/sessions/..%2Fsecret")).status).toBe(404);
     expect((await get("/%2E%2E/package.json")).status).toBe(404);
   });

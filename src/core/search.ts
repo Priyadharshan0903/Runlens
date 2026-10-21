@@ -1,11 +1,7 @@
 // Search parsed text without sending whole transcripts to the browser or writing an index to disk.
-import { createReadStream } from "node:fs";
-import { readdir, stat } from "node:fs/promises";
-import { join } from "node:path";
-import { createInterface } from "node:readline";
+import { stat } from "node:fs/promises";
 import type { Listing } from "./discover.js";
-import { parseRecords } from "./parse.js";
-import { subagentDir } from "./session.js";
+import type { SourceReader } from "../sources/types.js";
 import type { SearchMatch } from "./types.js";
 
 const cache = new Map<string, { stamp: string; query: string; snippet?: string }>();
@@ -21,20 +17,12 @@ export async function searchSessions(
   const matches: SearchMatch[] = [];
   for (const session of listing.sessions) {
     signal?.throwIfAborted();
-    const file = listing.files.get(session.id)!;
-    const snippet = await searchFile(file, query, signal);
-    if (snippet) {
-      matches.push({ id: session.id, snippet, source: "session" });
-      continue;
-    }
-    const dir = subagentDir(file);
-    const names = await readdir(dir).catch(() => [] as string[]);
-    for (const name of names) {
+    const entry = listing.files.get(session.id)!;
+    for await (const { file, source } of entry.reader.searchFiles(entry.file)) {
       signal?.throwIfAborted();
-      if (!name.startsWith("agent-") || !name.endsWith(".jsonl")) continue;
-      const agentSnippet = await searchFile(join(dir, name), query, signal);
-      if (agentSnippet) {
-        matches.push({ id: session.id, snippet: agentSnippet, source: "subagent" });
+      const snippet = await searchFile(entry.reader, file, query, signal);
+      if (snippet) {
+        matches.push({ id: session.id, snippet, source });
         break;
       }
     }
@@ -43,6 +31,7 @@ export async function searchSessions(
 }
 
 async function searchFile(
+  reader: SourceReader,
   file: string,
   query: string,
   signal?: AbortSignal,
@@ -50,47 +39,31 @@ async function searchFile(
   const info = await stat(file).catch(() => null);
   if (!info?.isFile()) return;
   const stamp = `${info.size}:${info.mtimeMs}`;
-  const hit = cache.get(file);
+  const cacheKey = `${reader.source.id}:${file}`;
+  const hit = cache.get(cacheKey);
   if (hit?.stamp === stamp && hit.query === query) return hit.snippet;
   signal?.throwIfAborted();
-  const input = createReadStream(file, { encoding: "utf8", signal });
-  const lines = createInterface({ input, crlfDelay: Infinity });
   let snippet: string | undefined;
-  try {
-    for await (const line of lines) {
-      signal?.throwIfAborted();
-      let record: unknown;
-      try {
-        record = JSON.parse(line);
-      } catch {
-        continue;
-      }
-      if (!record || typeof record !== "object" || Array.isArray(record)) continue;
-      const { events } = parseRecords([record as Record<string, unknown>]);
-      for (const event of events) {
-        const text =
-          "text" in event
-            ? event.text
-            : event.type === "tool_result"
-              ? event.output
-              : event.type === "tool_use"
-                ? `${event.name} ${JSON.stringify(event.input)}`
-                : "";
-        const plain = text.replace(/\s+/g, " ").trim();
-        const position = normalize(plain).indexOf(query);
-        if (position >= 0) {
-          const start = Math.max(0, position - 65);
-          snippet = `${start ? "…" : ""}${plain.slice(start, position + query.length + 130)}${plain.length > position + query.length + 130 ? "…" : ""}`;
-          break;
-        }
-      }
-      if (snippet) break;
+  for await (const event of reader.readEvents(file, signal)) {
+    signal?.throwIfAborted();
+    const text =
+      "text" in event
+        ? event.text
+        : event.type === "tool_result"
+          ? event.output
+          : event.type === "tool_use"
+            ? `${event.name} ${JSON.stringify(event.input)}`
+            : "";
+    const plain = text.replace(/\s+/g, " ").trim();
+    const position = normalize(plain).indexOf(query);
+    if (position >= 0) {
+      const start = Math.max(0, position - 65);
+      snippet = `${start ? "…" : ""}${plain.slice(start, position + query.length + 130)}${plain.length > position + query.length + 130 ? "…" : ""}`;
+      break;
     }
-  } finally {
-    lines.close();
-    input.destroy();
   }
-  cache.set(file, { stamp, query, snippet });
+  signal?.throwIfAborted();
+  cache.set(cacheKey, { stamp, query, snippet });
   if (cache.size > 1000) cache.delete(cache.keys().next().value!);
   return snippet;
 }

@@ -3,7 +3,14 @@
 
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
+
+import { loadSession as loadDiscoveredSession } from "../src/core/session.js";
+import { claudeReader } from "../src/sources/claude/reader.js";
+
+export function loadSession(file: string) {
+  return loadDiscoveredSession({ id: basename(file, ".jsonl"), file, reader: claudeReader });
+}
 
 let clock = Date.parse("2026-10-01T10:00:00.000Z");
 /** A timestamp that moves forward by `ms` each call. */

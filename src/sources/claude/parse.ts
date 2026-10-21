@@ -5,26 +5,9 @@
 
 import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
-import type { TokenUsage } from "./types.js";
-
-export type Event =
-  | { type: "prompt"; text: string; at: string }
-  /** A message the person sent while the agent was still working. */
-  | { type: "interjection"; text: string; at: string }
-  | { type: "interrupt"; at: string }
-  | { type: "text"; text: string; at: string }
-  | { type: "thinking"; text: string; at: string }
-  | { type: "compaction"; text: string; at: string }
-  | { type: "tool_use"; id: string; name: string; input: unknown; at: string }
-  | {
-      type: "tool_result";
-      toolUseId: string;
-      isError: boolean;
-      output: string;
-      at: string;
-      /** Set when the call started a subagent. */
-      agentId?: string;
-    };
+import type { Event } from "../../core/events.js";
+import { describeTool } from "./tools.js";
+import type { TokenUsage } from "../../core/types.js";
 
 export interface TranscriptInfo {
   title?: string;
@@ -51,28 +34,40 @@ export interface Transcript {
 
 type Rec = Record<string, unknown>;
 
-export async function readJsonl(file: string): Promise<Rec[]> {
-  const records: Rec[] = [];
-  const lines = createInterface({ input: createReadStream(file, "utf8"), crlfDelay: Infinity });
-  for await (const line of lines) {
-    if (!line.trim()) continue;
-    try {
-      const value = JSON.parse(line);
-      if (isRec(value)) records.push(value);
-    } catch {
-      // A half-written last line while a session is live, or a corrupt line: skip it.
+export async function* streamRecords(file: string, signal?: AbortSignal): AsyncIterable<Rec> {
+  signal?.throwIfAborted();
+  const input = createReadStream(file, { encoding: "utf8", signal });
+  const lines = createInterface({ input, crlfDelay: Infinity });
+  try {
+    for await (const line of lines) {
+      signal?.throwIfAborted();
+      if (!line.trim()) continue;
+      let value: unknown;
+      try {
+        value = JSON.parse(line);
+      } catch {
+        // A half-written last line while a session is live, or a corrupt line: skip it.
+        continue;
+      }
+      if (isRec(value)) yield value;
     }
+  } finally {
+    lines.close();
+    input.destroy();
   }
-  return records;
 }
 
-export async function readTranscript(file: string): Promise<Transcript> {
-  return parseRecords(await readJsonl(file));
+export async function readTranscript(file: string, cwd?: string): Promise<Transcript> {
+  const records: Rec[] = [];
+  for await (const record of streamRecords(file)) records.push(record);
+  return parseRecords(records, cwd);
 }
 
-export function parseRecords(records: Rec[]): Transcript {
+export function parseRecords(records: Rec[], cwd?: string): Transcript {
   const events: Event[] = [];
   const info: TranscriptInfo = {};
+  // A resumed file can begin with tool records before its first recorded working directory.
+  const callCwd = cwd ?? str(records.find((record) => str(record.cwd))?.cwd);
   let customTitle: string | undefined;
   const usage = new Map<string, UsageRecord>();
   let anonymous = 0;
@@ -105,7 +100,7 @@ export function parseRecords(records: Rec[]): Transcript {
         parseUser(r, at ?? "", events);
         break;
       case "assistant":
-        parseAssistant(r, at ?? "", events);
+        parseAssistant(r, at ?? "", events, callCwd);
         if (isRec(r.message) && isRec(r.message.usage)) {
           const m = r.message;
           const u = m.usage as Rec;
@@ -210,7 +205,7 @@ function cleanPastes(text: string): string {
     .trim();
 }
 
-function parseAssistant(r: Rec, at: string, events: Event[]) {
+function parseAssistant(r: Rec, at: string, events: Event[], cwd?: string) {
   const content = isRec(r.message) ? r.message.content : undefined;
   if (!Array.isArray(content)) return;
   for (const block of content) {
@@ -229,6 +224,7 @@ function parseAssistant(r: Rec, at: string, events: Event[]) {
         id: str(block.id) ?? "",
         name: str(block.name) ?? "unknown",
         input: block.input,
+        ...describeTool(str(block.name) ?? "unknown", block.input, cwd),
         at,
       });
     }

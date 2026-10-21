@@ -276,6 +276,8 @@
 }
 .main-message p {
   color: var(--muted);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
 }
 .side-message {
   padding: 15px 12px;

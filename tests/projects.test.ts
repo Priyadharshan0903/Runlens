@@ -1,3 +1,4 @@
+import { claudeReader } from "../src/sources/claude/reader.js";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -10,6 +11,7 @@ import { makeProjectsRoot, prompt } from "./helpers.js";
 function session(id: string, cwd?: string, day = 1): SessionSummary {
   return {
     id,
+    source: claudeReader.source,
     title: `Session ${id}`,
     firstPrompt: "Inspect the code",
     cwd,
@@ -137,12 +139,16 @@ describe("projects inferred from recorded directories", () => {
     const fixture = makeProjectsRoot();
     const project = join(fixture.root, "restored-project");
     fixture.writeSession("cached", [{ ...prompt("inspect"), cwd: project }]);
-    expect((await listSessions([fixture.root])).sessions[0].project?.availability).toBe("missing");
+    expect(
+      (await listSessions([{ reader: claudeReader, roots: [fixture.root] }])).sessions[0].project
+        ?.availability,
+    ).toBe("missing");
 
     mkdirSync(project);
-    expect((await listSessions([fixture.root])).sessions[0].project?.availability).toBe(
-      "available",
-    );
+    expect(
+      (await listSessions([{ reader: claudeReader, roots: [fixture.root] }])).sessions[0].project
+        ?.availability,
+    ).toBe("available");
   });
 });
 

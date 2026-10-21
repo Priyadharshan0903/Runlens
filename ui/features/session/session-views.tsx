@@ -1,7 +1,7 @@
 import { CaretDownIcon, FileTextIcon } from "@phosphor-icons/react";
 import { useState } from "preact/hooks";
 import type { Session } from "../../../src/core/types.js";
-import { formatClock, kindOf, plural } from "../../shared/format.js";
+import { formatClock, plural } from "../../shared/format.js";
 import { AgentStep, CallDetails, ToolStepRow, TurnView } from "./transcript.js";
 import {
   formatNumber,
@@ -39,7 +39,7 @@ export function ActivityTrace({
           <button
             key={step.id}
             class="tick"
-            data-kind={kindOf(step.name)}
+            data-kind={step.action.kind}
             data-failed={step.result?.status === "error" || undefined}
             aria-label={`Go to ${step.name}: ${step.summary}`}
             title={`${step.name} · ${step.summary}`}
@@ -169,7 +169,11 @@ function FileChange({ file, cwd }: { file: FileActivity; cwd?: string }) {
       {open && (
         <div class="file-change-body">
           {file.calls
-            .filter((step) => kindOf(step.name) === "change")
+            .filter((step) =>
+              step.action.files?.some(
+                (effect) => effect.path === file.path && effect.operation === "change",
+              ),
+            )
             .map((step) => (
               <div key={step.id}>
                 <div class="change-call-label">
