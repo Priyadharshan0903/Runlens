@@ -188,6 +188,40 @@ npm test -- tests/core.test.ts tests/features.test.ts tests/projects.test.ts
 
 Runtime dependencies: none. Requires Node 20+.
 
+## GitHub Actions
+
+`.github/workflows/ci.yml` checks pushes to `master`, pull requests, and manual runs on Ubuntu
+with Node 22 and 24. It installs the locked dependencies, checks formatting and types, runs the
+complete test suite (including HTTP server tests), builds, and verifies a clean package installation.
+The normal local `npm run check` continues to avoid starting a server.
+
+The installation check packs the built files, installs the archive outside the checkout, runs the
+installed `runlens --help` and `--version` commands, and checks the shipped UI and referenced fonts.
+It also rejects transcript/environment filenames in the archive. This check does not open the UI,
+read local sessions, or start a server. To run it after building:
+
+```sh
+npm run test:package
+```
+
+`.github/workflows/release.yml` is a manual **Prepare GitHub release** workflow. Once the workflows
+are committed and pushed to the default branch:
+
+1. Choose **Actions → Prepare GitHub release → Run workflow** and select the branch or tag to build.
+2. The workflow runs all checks on Node 24 and verifies the package installation.
+3. It saves the `.tgz` package and `SHA256SUMS`, then creates a draft release named `v<package version>`
+   targeting the exact checked commit, with generated release notes and both files attached.
+4. Review the draft and complete the remaining release requirements before publishing it.
+
+Bump `package.json` and the lockfile version before preparing a new version. If a release with that
+tag already exists, the workflow fails instead of replacing it. Checked workflow artifacts are kept
+for 14 days; assets attached to the draft release are separate from that retention period. Packaging
+files are written under the ignored `release/` directory.
+
+The workflows use pinned action commits. CI and packaging have read access; only the final draft
+job gets release write access. No npm token is needed. npm publication remains disabled by the
+package's `private` flag, and the workflow never runs `npm publish`.
+
 ```text
 src/
   core/                    transcript parsing, discovery, search, and reconstruction
@@ -229,6 +263,10 @@ ui/
     responsive.css         tablet and phone layout
 scripts/
   build.mjs                bundles the server, UI, and local styles
+  check-package.mjs        verifies an isolated package installation and writes release checksums
+.github/workflows/
+  ci.yml                   full checks and package verification on Node 22/24
+  release.yml              checked archive and manual draft GitHub release
 docs/
   code-review.md           FOG-65 audit before project grouping and additional readers
 tests/                    core, feature, and HTTP server tests
@@ -332,3 +370,19 @@ directory cannot be removed. Existing backend processes must be restarted to pic
   context sit directly under the name, without pulling the icons down between the two lines.
 - Added regression coverage for duplicate-name directory labels; no extra state or dependency was
   needed. Browser and visual verification remain with the user.
+
+### 2026-10-21 — GitHub checks and draft releases
+
+- Added CI for pushes to `master`, pull requests, and manual runs on Node 22/24. CI runs formatting,
+  types, the full test suite, production build, and installation checks against the packed archive.
+- Added a manual release workflow that repeats verification on Node 24, retains checked artifacts,
+  and creates a draft GitHub release with generated notes, the package, and its SHA-256 checksum.
+- Pinned action commits and limited release write permissions to the final draft job. npm publishing
+  stays disabled; the workflow uses GitHub's built-in token.
+- Added `check:ci` for the full suite and `test:package` for isolated installation, installed CLI
+  checks, UI/font assets, and archive filename checks. Local `check` retains its server-free behavior.
+- The installation check uses a temporary cache and removes its temporary installation on completion.
+  Release archives are kept only when an output directory is requested.
+- Local validation passed workflow linting with actionlint, formatting, types, 32 core/feature/project
+  tests, the build, and isolated installation checks. GitHub-hosted Node 22/24 runs and the full
+  HTTP test suite remain to be exercised after the workflows are pushed.
