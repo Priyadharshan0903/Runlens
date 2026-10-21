@@ -48,6 +48,14 @@ try {
   const manifest = JSON.parse(await readFile(join(installed, "package.json"), "utf8"));
   assert.equal(manifest.version, expected.version);
   assert.equal(manifest.bin.runlens, "dist/cli.js");
+  assert.equal(manifest.license, expected.license);
+
+  for (const notice of ["LICENSE", "THIRD_PARTY_NOTICES.md"]) {
+    const source = await readFile(notice, "utf8");
+    const shipped = await readFile(join(installed, notice), "utf8");
+    assert(source.trim().length > 0, `Empty license notice: ${notice}`);
+    assert.equal(shipped, source, `The package must include the full ${notice}.`);
+  }
 
   for (const argument of ["--version", "--help"]) {
     const output = execFileSync(
@@ -77,7 +85,7 @@ try {
     .digest("hex");
   await writeFile(join(destination, "SHA256SUMS"), `${checksum}  ${packed.filename}\n`);
   console.log(
-    `Verified ${expected.name}@${expected.version}: installed CLI, UI, and ${fonts.size} local fonts.`,
+    `Verified ${expected.name}@${expected.version}: installed CLI, UI, ${fonts.size} local fonts, and license notices.`,
   );
   if (process.argv[2]) console.log(`Release files: ${destination}`);
 } finally {

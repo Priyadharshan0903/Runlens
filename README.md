@@ -33,8 +33,9 @@ Only pass folders that exist. Options:
 | `--port <n>`   | Preferred port, default `8740`; tries the next 10 ports if occupied.                                          |
 | `--no-open`    | Print the URL without opening a browser.                                                                      |
 
-The package and CLI are named `runlens`. This repository is still private and is not published
-to npm; use the local commands above.
+The package and CLI are named `runlens`. Downloadable builds are listed on
+[GitHub Releases](https://github.com/Priyadharshan0903/Runlens/releases). The package is configured
+for public npm publication; the current release workflow prepares GitHub drafts only.
 
 ## Session library
 
@@ -123,6 +124,21 @@ text and Geist Mono for code and identifiers. The session trace is the main visu
   transcript search scans the original text, including text beyond that display limit.
 
 Transcripts and exports can include source code, command output, and secrets printed by tools.
+
+## License and third-party notices
+
+Runlens's own code uses the [MIT license](LICENSE), copyright 2026 Priyadharshan0903.
+[Third-party notices](THIRD_PARTY_NOTICES.md) contain the original copyright statements and full
+license texts for the bundled Preact, Phosphor Icons, Marked, Geist Sans, and Geist Mono packages.
+Marked's additional Markdown notice is preserved. The fonts retain their SIL Open Font License.
+
+Both files ship at the root of every newly built npm package and GitHub release archive. The build
+regenerates third-party notices from the installed dependency versions; commit that generated file
+when dependencies change. The package installation check verifies that both complete files are
+present in the installed package. The notices acknowledge the authors through the distributed files
+and this README link; they do not require a notification email or a UI prompt.
+
+Archives uploaded before this change need to be rebuilt to include these files.
 
 ## What the numbers mean
 
@@ -219,8 +235,8 @@ for 14 days; assets attached to the draft release are separate from that retenti
 files are written under the ignored `release/` directory.
 
 The workflows use pinned action commits. CI and packaging have read access; only the final draft
-job gets release write access. No npm token is needed. npm publication remains disabled by the
-package's `private` flag, and the workflow never runs `npm publish`.
+job gets release write access. No npm token is needed. The package can be published to npm manually;
+this workflow creates GitHub drafts and never runs `npm publish`.
 
 ```text
 src/
@@ -386,3 +402,14 @@ directory cannot be removed. Existing backend processes must be restarted to pic
 - Local validation passed workflow linting with actionlint, formatting, types, 32 core/feature/project
   tests, the build, and isolated installation checks. GitHub-hosted Node 22/24 runs and the full
   HTTP test suite remain to be exercised after the workflows are pushed.
+
+### 2026-10-21 — MIT license and bundled dependency notices
+
+- Removed the package's private flag and added MIT license metadata, repository, homepage, and issue
+  tracker links. Added the project license and updated the lockfile's root license metadata.
+- Generate `THIRD_PARTY_NOTICES.md` during each build from the exact installed Preact, Phosphor,
+  Marked, Geist Sans, and Geist Mono versions, preserving their complete supplied license files.
+- Included both license files explicitly in the package and documented the credits in README.
+  Package installation verification checks that the full files reach users unchanged.
+- The generated notices cover bundled code/fonts; build-only development tools are not distributed
+  in the package. Existing uploaded archives need rebuilding to include the notices.

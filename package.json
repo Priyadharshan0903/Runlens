@@ -1,14 +1,24 @@
 {
   "name": "runlens",
-  "version": "0.1.0",
-  "private": true,
+  "version": "0.1.1",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Priyadharshan0903/Runlens.git"
+  },
+  "homepage": "https://github.com/Priyadharshan0903/Runlens#readme",
+  "bugs": {
+    "url": "https://github.com/Priyadharshan0903/Runlens/issues"
+  },
   "description": "See what your Claude Code agents actually did: a local, visual trace of sessions, subagents and tool calls.",
   "type": "module",
   "bin": {
     "runlens": "dist/cli.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "engines": {
     "node": ">=20"
