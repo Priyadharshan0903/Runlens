@@ -1,6 +1,7 @@
 import { claudeReader } from "../src/sources/claude/reader.js";
 import { describe, expect, it } from "vitest";
 import { listSessions } from "../src/core/discover.js";
+import { sessionNotFoundMessage } from "../src/core/session.js";
 import { parseRecords } from "../src/sources/claude/parse.js";
 import { summarizeTool } from "../src/sources/claude/tools.js";
 import { buildTurns } from "../src/core/tree.js";
@@ -17,6 +18,16 @@ import {
 } from "./helpers.js";
 
 const tools = (steps: { kind: string }[]) => steps.filter((s): s is ToolStep => s.kind === "tool");
+
+describe("session folder diagnostics", () => {
+  it("explains missing sessions using every configured folder and recovery guidance", () => {
+    const roots = ["/home/person/.claude/projects", "/home/person/.claude-accounts/work/projects"];
+    const message = sessionNotFoundMessage(roots);
+    for (const root of roots) expect(message).toContain(root);
+    expect(message).toContain("--dir <path>");
+    expect(message).toContain("CLAUDE_CONFIG_DIR");
+  });
+});
 
 describe("parseRecords", () => {
   it("uses the recorded working directory even when the file starts with a tool call", () => {

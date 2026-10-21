@@ -19,23 +19,42 @@ If another viewer is already running there, the CLI tries the next available por
 version's new backend features, start a new process after building; refreshing a page does not
 replace an older running backend.
 
-For multiple Claude Code accounts:
+Without `--dir`, Runlens automatically combines existing Claude history from:
 
-```sh
-npm start -- --dir ~/.claude-accounts/personal/projects --dir ~/.claude-accounts/work/projects --dir ~/.claude/projects
-```
+- `$CLAUDE_CONFIG_DIR/projects`, when the environment variable is set.
+- `~/.claude/projects`.
+- Each immediate account folder's `projects` directory under `~/.claude-accounts`.
 
+Account names are discovered rather than hardcoded. No account-switcher folder is required.
+Missing folders are skipped, paths pointing to the same directory are read once, and copied
+sessions with the same ID are counted once. Newly created account folders are picked up on the
+next start; sessions within the configured folders appear when the library refreshes.
+
+To read only specific history folders, pass `--dir` (repeatable). Explicit folders replace automatic
+discovery, so `npm start -- --dir ~/.claude/projects` intentionally reads only that history.
 Only pass folders that exist. Options:
 
-| Flag           | Meaning                                                                                                       |
-| -------------- | ------------------------------------------------------------------------------------------------------------- |
-| `--dir <path>` | A Claude Code `projects` folder; repeatable. Default: `$CLAUDE_CONFIG_DIR/projects` and `~/.claude/projects`. |
-| `--port <n>`   | Preferred port, default `8740`; tries the next 10 ports if occupied.                                          |
-| `--no-open`    | Print the URL without opening a browser.                                                                      |
+| Flag           | Meaning                                                                                                                               |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `--dir <path>` | Read only these Claude Code `projects` folders; repeatable. Without it, discover active config, default, and account history folders. |
+| `--port <n>`   | Preferred port, default `8740`; tries the next 10 ports if occupied.                                                                  |
+| `--no-open`    | Print the URL without opening a browser.                                                                                              |
+
+Startup output lists every configured history folder. The standard folder is `~/.claude/projects`
+(with the dot). Other custom locations outside the discovered account folders can be selected
+through `--dir` or `CLAUDE_CONFIG_DIR`. The library footer exposes the read paths on hover. A
+missing-session response lists those folders and explains how to include a different location.
+
+If the library loads but individual chats stop opening after a rebuild, stop the existing Runlens
+process and restart it with the same `--dir` options. A running process keeps its old backend code
+even though rebuilding replaces its static UI files. The UI detects the pre-adapter response format
+and explains the required restart instead of trying to render incompatible session data. Your
+transcripts are not changed by rebuilding or restarting Runlens.
 
 The package and CLI are named `runlens`. Downloadable builds are listed on
-[GitHub Releases](https://github.com/Priyadharshan0903/Runlens/releases). The package is configured
-for public npm publication; the current release workflow prepares GitHub drafts only.
+[GitHub Releases](https://github.com/Priyadharshan0903/Runlens/releases). Install the published
+package with `npx runlens@latest`. The publish workflow releases the checked archive to npm and
+GitHub automatically after verification.
 
 ## Session library
 
@@ -244,28 +263,53 @@ read local sessions, or start a server. To run it after building:
 npm run test:package
 ```
 
-`.github/workflows/release.yml` is a manual **Prepare GitHub release** workflow. Once the workflows
-are committed and pushed to the default branch:
+`.github/workflows/publish.yml` runs when a `v*` tag is pushed, or through **Actions → Publish
+release → Run workflow**. It replaces the old draft-only `release.yml` workflow.
 
-1. Choose **Actions → Prepare GitHub release → Run workflow** and select the branch or tag to build.
-2. The workflow runs all checks on Node 24 and verifies the package installation.
-3. It saves the `.tgz` package and `SHA256SUMS`, then creates a draft release named `v<package version>`
-   targeting the exact checked commit, with generated release notes and both files attached.
-4. Review the draft and complete the remaining release requirements before publishing it.
+1. Check that a pushed version tag matches `package.json`, then run the full checks on Node 24.
+2. Build, install-test, and retain the `.tgz` package and `SHA256SUMS`.
+3. Verify the downloaded archive's checksum and publish that exact archive to npm using OIDC
+   trusted publishing and provenance. Stable versions use `latest`; prereleases use `next`.
+4. Publish the GitHub release immediately, with generated notes and the same archive/checksum
+   attached. There is no draft or separate Publish button. Prereleases are marked accordingly.
 
-Bump `package.json` and the lockfile version before preparing a new version. If a release with that
-tag already exists, the workflow fails instead of replacing it. Checked workflow artifacts are kept
-for 14 days; assets attached to the draft release are separate from that retention period. Packaging
-files are written under the ignored `release/` directory.
+Configure npm **runlens → Settings → Trusted Publisher → GitHub Actions** once, with owner
+`Priyadharshan0903`, repository `Runlens`, and workflow filename `publish.yml`. Permit direct
+`npm publish` if npm shows an allowed-actions setting. The workflow uses Node 24 and npm 11,
+with `id-token: write` restricted to the npm publishing job; no npm token secret is needed.
+See [npm's trusted publishing documentation](https://docs.npmjs.com/trusted-publishers/).
 
-The workflows use pinned action commits. CI and packaging have read access; only the final draft
-job gets release write access. No npm token is needed. The package can be published to npm manually;
-this workflow creates GitHub drafts and never runs `npm publish`.
+For each release, commit your changes first, then bump the package version and push its commit/tag:
+
+```sh
+npm version patch
+git push origin master --follow-tags
+```
+
+For example, bumping `0.1.2` creates `0.1.3` and tag `v0.1.3`. `npm version` updates both
+`package.json` and the lockfile. npm versions cannot be overwritten. Alternatively, update and
+commit both files yourself, push the changes, and run the workflow manually on that commit.
+The workflow publishes only when invoked by a version-tag push or a manual run; ordinary commits
+continue to run CI without releasing.
+
+GitHub publication waits for npm publication to succeed. If the final GitHub job fails after npm
+succeeds, use **Re-run failed jobs** to retry that job without publishing the npm version again.
+Do not rerun the whole successful npm publication for the same version. GitHub and npm are separate
+services, so the workflow cannot roll back an npm publication if GitHub publication fails.
+
+The workflows use pinned action commits. CI and packaging have read access; only the final GitHub
+job gets release write access. Checked workflow artifacts are retained for 14 days; assets attached
+to the published release remain available separately. Packaging files use the ignored `release/`
+directory.
 
 ```text
 src/
-  core/                    transcript parsing, discovery, search, and reconstruction
+  core/                    common events, discovery, search, and turn reconstruction
     projects.ts            directory identities inferred from recorded working folders
+  sources/
+    types.ts               adapter contract and source folder configuration
+    index.ts               registered agent readers
+    claude/                Claude discovery, parsing, tool semantics, and subagent linking
   server.ts                local read-only JSON API and static assets
   cli.ts                   command-line entry point
 ui/
@@ -306,16 +350,61 @@ scripts/
   check-package.mjs        verifies an isolated package installation and writes release checksums
 .github/workflows/
   ci.yml                   full checks and package verification on Node 22/24
-  release.yml              checked archive and manual draft GitHub release
+  publish.yml              checked archive, npm trusted publishing, and direct GitHub release
 docs/
   code-review.md           FOG-65 audit before project grouping and additional readers
-tests/                    core, feature, and HTTP server tests
+  source-adapters.md       reader contract and steps for adding another agent
+tests/                    core, feature, project, adapter, and HTTP server tests
 ```
 
 The build writes generated files in place under `dist/`, so it also works when the output
 directory cannot be removed. Existing backend processes must be restarted to pick up backend changes.
 
 ## Change log
+
+### 2026-10-22 — Include account histories by default
+
+- Changed default Claude discovery to include every existing `~/.claude-accounts/*/projects`
+  folder alongside the active `CLAUDE_CONFIG_DIR` and `~/.claude/projects`. A plain `npm start`
+  now combines these histories without requiring repeated flags.
+- Follow account directory symlinks and deduplicate physical history folders. Skip absent,
+  invalid, or inaccessible folders; retain session-ID deduplication across copied histories.
+- Explicit `--dir` folders still replace defaults. Updated CLI help, recovery guidance, and
+  setup documentation to describe automatic discovery and how to restrict it.
+- Added regression coverage for all account names, standard-only installs, missing/invalid folders,
+  active config precedence, directory symlinks, and copied sessions across account histories.
+- Validation: `npm run check` passed formatting, TypeScript, 45 tests, and the production build.
+  A read-only scan of the local histories found 96 displayable sessions across the three roots;
+  two additional transcript files had no recognized user prompt and retained the existing exclusion.
+
+### 2026-10-22 — Session loading compatibility and folder diagnostics
+
+- Diagnosed a running pre-adapter backend serving rebuilt UI files. It still returned the user's
+  session and history, but lacked the source/actions required by the new session view.
+- Added an explicit restart message for the older response format, preserving navigation back
+  to the library instead of rendering incompatible session data.
+- Print each source's actual history paths at startup. Missing-session responses include the
+  configured paths and `--dir`/`CLAUDE_CONFIG_DIR` guidance; error text preserves line breaks.
+- Kept custom account folders explicit rather than scanning every account by default. Added
+  recovery-message coverage to core tests and HTTP response assertions for CI.
+- Validation: formatting, TypeScript, all 41 server-free tests, and the production build passed.
+  The existing viewer was inspected read-only: it returned 96 sessions and the reported session's
+  43 turns in the old format. Restarting that process and browser verification remain with the user.
+
+### 2026-10-22 — Direct GitHub and npm releases
+
+- Replaced the draft-only `release.yml` with `publish.yml`, matching the npm Trusted Publisher
+  setup. Version-tag pushes and manual runs now check/package, publish to npm, and publish the
+  GitHub release directly.
+- Publish the verified archive rather than rebuilding it in the publishing job. Added checksum
+  verification, npm OIDC authentication, provenance, and a matching tag/package version check.
+- Stable releases use npm's `latest` tag; prereleases use `next` and GitHub's prerelease flag.
+  npm publication must succeed before GitHub publication; permissions stay scoped to each job.
+- Documented the one-time npm connection, normal release steps, and retrying a failed GitHub job
+  after a successful npm publication. This change does not publish a release from the local machine.
+- Validation passed workflow linting, stable/prerelease/tag-mismatch checks, formatting, TypeScript,
+  40 server-free tests, the production build, and isolated package installation. Live npm OIDC
+  authentication and GitHub publication will be verified by the first publishing run.
 
 ### 2026-10-22 — FOG-67 source adapters
 

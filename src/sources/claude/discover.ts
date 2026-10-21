@@ -2,7 +2,7 @@
 // Listing reads only the lines it needs (title, first prompt, folder) and is cached by
 // file size + modified time, so reopening the list doesn't re-read unchanged files.
 
-import { createReadStream, existsSync } from "node:fs";
+import { createReadStream, readdirSync, realpathSync, statSync } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
@@ -12,15 +12,37 @@ import { sessionId, subagentDir } from "./session.js";
 import type { DiscoveredSession } from "../types.js";
 type SessionSummary = DiscoveredSession["summary"];
 
-/** Claude Code's projects folder for the active config dir, plus the default ~/.claude one. */
-export function defaultRoots(env: NodeJS.ProcessEnv = process.env): string[] {
+/** Include the active config, standard history, and locally configured account histories. */
+export function defaultRoots(env: NodeJS.ProcessEnv = process.env, home = homedir()): string[] {
+  const accountsDir = join(home, ".claude-accounts");
+  let accountNames: string[] = [];
+  try {
+    accountNames = readdirSync(accountsDir, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory() || entry.isSymbolicLink())
+      .map((entry) => entry.name)
+      .sort();
+  } catch {
+    // Most installations have no account-switcher folder.
+  }
+
   const candidates = [
     env.CLAUDE_CONFIG_DIR ? join(env.CLAUDE_CONFIG_DIR, "projects") : undefined,
-    join(homedir(), ".claude", "projects"),
+    join(home, ".claude", "projects"),
+    ...accountNames.map((name) => join(accountsDir, name, "projects")),
   ];
-  return [...new Set(candidates.filter((c): c is string => !!c).map((c) => resolve(c)))].filter(
-    existsSync,
-  );
+  const roots = new Map<string, string>();
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const path = resolve(candidate);
+    try {
+      if (!statSync(path).isDirectory()) continue;
+      const realPath = realpathSync(path);
+      if (!roots.has(realPath)) roots.set(realPath, path);
+    } catch {
+      // Missing, inaccessible, or dangling account folders don't block the other histories.
+    }
+  }
+  return [...roots.values()];
 }
 
 const cache = new Map<string, { key: string; summary: SessionSummary | null }>();

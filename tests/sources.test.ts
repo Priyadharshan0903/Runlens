@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -9,11 +9,87 @@ import { loadSession } from "../src/core/session.js";
 import { buildTurns } from "../src/core/tree.js";
 import type { ToolAction } from "../src/core/types.js";
 import { claudeReader } from "../src/sources/claude/reader.js";
+import { defaultRoots } from "../src/sources/claude/discover.js";
 import { describeTool } from "../src/sources/claude/tools.js";
 import type { SourceReader } from "../src/sources/types.js";
 import { summarizeSession } from "../ui/features/session/session-data.js";
 import { groupSessionsByProject } from "../ui/features/library/session-list.js";
-import { makeProjectsRoot, prompt, tick } from "./helpers.js";
+import { jsonl, makeProjectsRoot, prompt, tick } from "./helpers.js";
+
+describe("Claude default history folders", () => {
+  it("includes standard, active-config, and every account history without hardcoded account names", () => {
+    const { root: home } = makeProjectsRoot();
+    const active = join(home, "custom-config", "projects");
+    const standard = join(home, ".claude", "projects");
+    const personal = join(home, ".claude-accounts", "personal", "projects");
+    const work = join(home, ".claude-accounts", "work", "projects");
+    for (const path of [active, standard, personal, work]) mkdirSync(path, { recursive: true });
+
+    expect(defaultRoots({ CLAUDE_CONFIG_DIR: join(home, "custom-config") }, home)).toEqual([
+      active,
+      standard,
+      personal,
+      work,
+    ]);
+    const additional = join(home, ".claude-accounts", "another-account", "projects");
+    mkdirSync(additional, { recursive: true });
+    expect(defaultRoots({}, home)).toContain(additional);
+  });
+
+  it("works with only the standard dot-folder and ignores missing or invalid account histories", () => {
+    const { root: home } = makeProjectsRoot();
+    expect(defaultRoots({}, home)).toEqual([]);
+    const standard = join(home, ".claude", "projects");
+    mkdirSync(standard, { recursive: true });
+    const accounts = join(home, ".claude-accounts");
+    mkdirSync(join(accounts, "empty"), { recursive: true });
+    mkdirSync(join(accounts, "invalid"), { recursive: true });
+    writeFileSync(join(accounts, "settings.json"), "{}");
+    writeFileSync(join(accounts, "invalid", "projects"), "not a directory");
+    mkdirSync(join(home, "claude", "projects"), { recursive: true });
+
+    expect(defaultRoots({ CLAUDE_CONFIG_DIR: join(home, "missing-config") }, home)).toEqual([
+      standard,
+    ]);
+  });
+
+  it("deduplicates active-account paths and symlinks to the same history", () => {
+    const { root: home } = makeProjectsRoot();
+    const account = join(home, ".claude-accounts", "personal");
+    mkdirSync(join(account, "projects"), { recursive: true });
+    symlinkSync(account, join(home, ".claude"), "junction");
+    symlinkSync(
+      join(home, "missing-account"),
+      join(home, ".claude-accounts", "dangling"),
+      "junction",
+    );
+
+    expect(defaultRoots({ CLAUDE_CONFIG_DIR: account }, home)).toEqual([join(account, "projects")]);
+    expect(defaultRoots({}, home)).toEqual([join(home, ".claude", "projects")]);
+  });
+
+  it("lists all default histories while counting copied sessions only once", async () => {
+    const { root: home } = makeProjectsRoot();
+    const roots = [
+      join(home, ".claude", "projects"),
+      join(home, ".claude-accounts", "personal", "projects"),
+      join(home, ".claude-accounts", "work", "projects"),
+    ];
+    for (const [index, root] of roots.entries()) {
+      const project = join(root, "-work-demo");
+      mkdirSync(project, { recursive: true });
+      writeFileSync(join(project, `session-${index}.jsonl`), jsonl([prompt(`Question ${index}`)]));
+      writeFileSync(join(project, "shared.jsonl"), jsonl([prompt("Copied session")]));
+    }
+    const listing = await listSessions([{ reader: claudeReader, roots: defaultRoots({}, home) }]);
+    expect(listing.sessions.map((session) => session.id).sort()).toEqual([
+      "session-0",
+      "session-1",
+      "session-2",
+      "shared",
+    ]);
+  });
+});
 
 // Deliberately not Claude JSONL: an adapter for a JSON document with unrelated tool names.
 function fixtureReader(root: string, events: Event[], cwd?: string): SourceReader {

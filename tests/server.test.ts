@@ -51,7 +51,12 @@ describe("server", () => {
   });
 
   it("only serves listed sessions and plain asset names", async () => {
-    expect((await get("/api/sessions/does-not-exist")).status).toBe(404);
+    const missing = await get("/api/sessions/does-not-exist");
+    expect(missing.status).toBe(404);
+    const body = JSON.parse(missing.body);
+    expect(body.roots).toEqual([p.root]);
+    expect(body.error).toContain(p.root);
+    expect(body.error).toContain("--dir <path>");
     expect((await get("/api/sessions/..%2Fsecret")).status).toBe(404);
     expect((await get("/%2E%2E/package.json")).status).toBe(404);
   });

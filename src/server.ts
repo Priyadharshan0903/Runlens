@@ -12,7 +12,7 @@ import { readFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 import type { SourceFolders } from "./sources/types.js";
 import { listSessions, type Listing } from "./core/discover.js";
-import { loadSession } from "./core/session.js";
+import { loadSession, sessionNotFoundMessage } from "./core/session.js";
 import { searchSessions } from "./core/search.js";
 
 export interface ServerOptions {
@@ -67,7 +67,7 @@ export function createServer({ sources, uiDir }: ServerOptions): Server {
           listing = await listSessions(sources);
           file = listing.files.get(match[1]);
         }
-        if (!file) return json(res, { error: "Session not found" }, 404);
+        if (!file) return json(res, { error: sessionNotFoundMessage(roots), roots }, 404);
         return json(res, await loadSession(file));
       }
 

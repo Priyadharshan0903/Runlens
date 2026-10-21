@@ -17,8 +17,9 @@ Usage
   npx runlens [options]
 
 Options
-  --dir <path>   A Claude Code "projects" folder to read (repeatable).
-                 Default: $CLAUDE_CONFIG_DIR/projects and ~/.claude/projects
+  --dir <path>   Read only these Claude Code "projects" folders (repeatable).
+                 Default: $CLAUDE_CONFIG_DIR/projects, ~/.claude/projects,
+                 and existing ~/.claude-accounts/*/projects folders
   --port <n>     Port to listen on (default 8740; the next free one is used if taken)
   --no-open      Don't open the browser
   -v, --version  Print the version
@@ -65,6 +66,9 @@ async function main() {
   console.log(
     `✔ Found ${sessions.length} sessions in ${roots.length} folder${roots.length === 1 ? "" : "s"}`,
   );
+  for (const { reader, roots: sourceRoots } of sources) {
+    for (const root of sourceRoots) console.log(`  ${reader.source.name}: ${root}`);
+  }
   console.log(`✔ Viewer running at ${url}`);
   console.log("  Press Ctrl+C to stop.");
   if (!values["no-open"]) openBrowser(url);

@@ -76,16 +76,28 @@ export function SessionPage({ sessionId, onMetaChange, ...props }: SessionPagePr
     [sessionId, onMetaChange],
   );
 
-  if (!request.data) {
+  // Rebuilding replaces static assets, but an existing Node process still serves its old API.
+  const outdatedBackend = request.data && !request.data.source;
+  if (!request.data || outdatedBackend) {
+    const error = outdatedBackend
+      ? "This Runlens process is serving an older session format than the UI. Your sessions are still on disk. Stop the running Runlens process and start it again with the same --dir folders, then reload this page."
+      : request.error;
     return (
-      <div class="main-message" role={request.error ? "alert" : "status"}>
-        <h1>{request.error ? "Couldn't open this session" : "Opening session…"}</h1>
-        {request.error && <p>{request.error}</p>}
-        {request.error && (
+      <div class="main-message" role={error ? "alert" : "status"}>
+        <h1>
+          {outdatedBackend
+            ? "Restart Runlens to open this session"
+            : error
+              ? "Couldn't open this session"
+              : "Opening session…"}
+        </h1>
+        {error && <p>{error}</p>}
+        {error && (
           <button class="button secondary" onClick={request.refresh}>
             Try again
           </button>
         )}
+        {error && <a href="#/">Back to all sessions</a>}
       </div>
     );
   }
