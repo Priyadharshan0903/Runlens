@@ -10,9 +10,11 @@ import {
 } from "@phosphor-icons/react";
 import { useMemo, useState } from "preact/hooks";
 import type { SearchMatch, SessionSummary } from "../../../src/core/types.js";
-import { formatAgo, projectName } from "../../shared/format.js";
+import { formatAgo } from "../../shared/format.js";
 import type { SessionMeta } from "../../shared/use-preferences.js";
-import { useResource, type Resource } from "../../shared/use-resource.js";
+import type { Resource } from "../../shared/use-resource.js";
+import { groupSessionsByProject, sessionProject } from "./session-list.js";
+import type { useSessionSearch } from "./use-session-search.js";
 
 export interface SessionLibrary {
   sessions: SessionSummary[];
@@ -21,6 +23,8 @@ export interface SessionLibrary {
 
 interface LibraryProps {
   library: Resource<SessionLibrary>;
+  matching: SessionSummary[];
+  search: ReturnType<typeof useSessionSearch>;
   query: string;
   scope: "all" | "pinned";
   annotations: Record<string, SessionMeta>;
@@ -35,6 +39,8 @@ const NO_SESSIONS: SessionSummary[] = [];
 
 export function Library({
   library,
+  matching,
+  search,
   query,
   scope,
   annotations,
@@ -44,22 +50,20 @@ export function Library({
 }: LibraryProps) {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const searchQuery = query.trim();
-  const searchUrl =
-    searchQuery.length >= 2 ? `/api/search?q=${encodeURIComponent(searchQuery)}` : null;
-  const search = useResource<{ matches: SearchMatch[] }>(searchUrl, { debounce: 300 });
   const sessions = library.data?.sessions ?? NO_SESSIONS;
 
-  const projects = useMemo(() => {
-    const paths = sessions.map((session) => session.cwd).filter((path): path is string => !!path);
-    return [...new Set(paths)].sort();
-  }, [sessions]);
-
-  const transcriptMatches = useMemo(() => {
-    return new Map(search.data?.matches.map((match) => [match.id, match]));
-  }, [search.data]);
+  const projects = useMemo(
+    () =>
+      groupSessionsByProject(sessions)
+        .map((group) => group.project)
+        .sort(
+          (first, second) =>
+            first.name.localeCompare(second.name) || first.id.localeCompare(second.id),
+        ),
+    [sessions],
+  );
 
   const visibleSessions = useMemo(() => {
-    const normalizedQuery = searchQuery.toLowerCase();
     const today = new Date();
     let earliestDate = 0;
 
@@ -75,25 +79,13 @@ export function Library({
         break;
     }
 
-    const matchingSessions = sessions.filter((session) => {
+    const matchingSessions = matching.filter((session) => {
       const annotation = annotations[session.id];
 
       if (scope === "pinned" && !annotation?.pinned) return false;
-      if (filters.project && session.cwd !== filters.project) return false;
+      if (filters.project && sessionProject(session).id !== filters.project) return false;
       if (Date.parse(session.updatedAt) < earliestDate) return false;
-      if (!normalizedQuery || transcriptMatches.has(session.id)) return true;
-
-      const searchableFields = [
-        session.id,
-        session.title,
-        session.firstPrompt,
-        session.cwd ?? "",
-        annotation?.title ?? "",
-        annotation?.notes ?? "",
-        ...(annotation?.tags ?? []),
-      ];
-
-      return searchableFields.some((field) => field.toLowerCase().includes(normalizedQuery));
+      return true;
     });
 
     return matchingSessions.sort((first, second) => {
@@ -107,11 +99,11 @@ export function Library({
       }
       return second.updatedAt.localeCompare(first.updatedAt);
     });
-  }, [sessions, annotations, filters, scope, searchQuery, transcriptMatches]);
+  }, [matching, annotations, filters, scope]);
 
   const hasFilters = !!query || !!filters.project || filters.period !== "all";
   const isSearching = search.status === "loading";
-  const projectCount = new Set(visibleSessions.map((session) => session.cwd ?? "unknown")).size;
+  const projectCount = new Set(visibleSessions.map((session) => sessionProject(session).id)).size;
   const agentCount = visibleSessions.reduce((total, session) => total + session.subagents, 0);
 
   function clearFilters() {
@@ -159,8 +151,9 @@ export function Library({
             >
               <option value="">All projects</option>
               {projects.map((project) => (
-                <option key={project} value={project}>
-                  {projectName(project)}
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                  {project.path ? ` — ${project.path}` : ""}
                 </option>
               ))}
             </select>
@@ -244,7 +237,7 @@ export function Library({
           key={`${scope}:${query}:${filters.project}:${filters.period}:${filters.sort}`}
           sessions={visibleSessions}
           annotations={annotations}
-          matches={transcriptMatches}
+          matches={search.matches}
           query={query}
           roots={library.data?.roots ?? []}
           onPin={onPin}
@@ -312,9 +305,13 @@ function SessionTable({ sessions, annotations, matches, query, roots, onPin }: S
                   )}
                 </a>
               </div>
-              <span class="table-project" role="cell" title={session.cwd}>
+              <span
+                class="table-project"
+                role="cell"
+                title={sessionProject(session).path ?? session.cwd}
+              >
                 <FolderSimpleIcon size={14} />
-                {projectName(session.cwd)}
+                {sessionProject(session).name}
               </span>
               <span class="num table-agents" role="cell">
                 {session.subagents ? (

@@ -41,10 +41,34 @@ to npm; use the local commands above.
 - **Transcript search** scans prompts, assistant text, recorded thinking, tool inputs and outputs,
   and subagent transcripts. Results include a matching excerpt. Two characters start a full-text
   search; one character still filters titles and local annotations. `Cmd/Ctrl + K` focuses search.
-- **Project and date filters** narrow the library, with newest, oldest, or title sorting.
+- **Project and date filters** narrow the library, with newest, oldest, or title sorting. The
+  project filter uses the same inferred folders as sidebar navigation, including subfolder sessions.
 - **Pins** keep useful sessions in a separate library view.
 - **Display names, tags, and notes** organize sessions without modifying their original files.
 - **Pagination** loads the library in batches of 40 rows.
+
+Navigation defaults to **By project**, with a saved **By date** option. Projects and their sessions
+are ordered by most recent activity. The three most recent projects start open; each shows five
+sessions with a “Show more” action. The selected session remains visible even when it is older than
+the initial five. Each group has a compact folder header with its session count and latest activity.
+Folders with identical names show the shortest distinguishing parent path, such as `work/apps` or
+`personal/apps`; the full path is available on hover and in the accessible label. Session rows are
+indented under their folder and show their title and time without repeating the project name.
+Missing project folders show “Folder removed.”
+
+Project boundaries come from session history, without Git detection. If working directories include
+both `/work/demo` and `/work/demo/src`, those sessions belong to `/work/demo`. The full normalized
+path identifies the project, so `/personal/demo` stays separate. Runlens uses the highest recorded
+ancestor; it does not guess an unrecorded project root. If only `demo/src` and `demo/tests` appear,
+they remain separate until a session records `demo`. Home, unknown, and filesystem-root sessions
+share “Home / no project” and cannot absorb other projects. A newly recorded ancestor can change
+existing inferred groups when the library refreshes. Git repositories, nested repositories, and
+worktrees follow this same directory rule.
+
+Global search covers every project and filters the sidebar and library through one shared search
+request. Matching project groups open while searching; clearing search restores manual expansion
+choices. Library-specific project, date, and pin filters do not narrow the sidebar. Search requests
+pause while viewing a session, where the sidebar returns to the full library.
 
 ## Inspect a session
 
@@ -89,7 +113,7 @@ text and Geist Mono for code and identifiers. The session trace is the main visu
 
 - Everything stays on this machine. There are no model calls, uploads, analytics, or remote fonts.
 - Transcript files are only read, never edited or deleted.
-- Pins, display names, tags, notes, theme, sidebar visibility, and live-refresh preferences are saved in this browser's
+- Pins, display names, tags, notes, theme, sidebar visibility/grouping, and live-refresh preferences are saved in this browser's
   local storage under `runlens.workspace.v1`. They are specific to the browser and port; clearing
   site data removes them. Export JSON to keep a copy of an annotated session.
 - The server binds to `127.0.0.1`, checks the request hostname, and only opens discovered transcripts.
@@ -126,14 +150,16 @@ The UI uses Preact and follows the same state model as React: store user choices
 results, then derive what the screen displays. A smaller state count alone is not a design goal;
 clear ownership and consistent transitions are.
 
-| Owner                                  | Responsibility                                                                                       |
-| -------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `ui/app/app.tsx`                       | URL navigation, workspace layout, and the search input shared by the toolbar and library.            |
-| `ui/features/library/library.tsx`      | Library filters; each result set owns its pagination. Search runs only while this page is mounted.   |
-| `ui/features/session/session-page.tsx` | The selected session request and session-view navigation. Changing session identity resets its view. |
-| `ui/features/session/inspector.tsx`    | A local notes draft and clipboard feedback. Notes persist after a 400 ms pause or on blur.           |
-| `ui/shared/use-resource.ts`            | One request snapshot, cancellation, debounce, refresh, and optional polling.                         |
-| `ui/shared/use-preferences.ts`         | Browser-local annotations and preferences, with stable update callbacks.                             |
+| Owner                                        | Responsibility                                                                                       |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `ui/app/app.tsx`                             | URL navigation, workspace layout, and the search input shared by the toolbar and library.            |
+| `ui/features/library/library.tsx`            | Library project/date filters and sorting; each result set owns its pagination.                       |
+| `ui/features/library/session-navigation.tsx` | Project expansion and row limits; grouping follows the saved preference.                             |
+| `ui/features/library/use-session-search.ts`  | One transcript search request, enabled on the library route and shared with navigation.              |
+| `ui/features/session/session-page.tsx`       | The selected session request and session-view navigation. Changing session identity resets its view. |
+| `ui/features/session/inspector.tsx`          | A local notes draft and clipboard feedback. Notes persist after a 400 ms pause or on blur.           |
+| `ui/shared/use-resource.ts`                  | One request snapshot, cancellation, debounce, refresh, and optional polling.                         |
+| `ui/shared/use-preferences.ts`               | Browser-local annotations and preferences, with stable update callbacks.                             |
 
 Counts, matching rows, agent rosters, and file summaries are derived from source data. Expensive
 session summaries are memoized per loaded transcript. Tool inputs are indexed only when an
@@ -146,6 +172,9 @@ Prettier enforces multiline formatting, and TypeScript rejects unused locals and
 
 ## Develop
 
+The [FOG-65 code review](docs/code-review.md) records the current project-filter behavior,
+search/reader boundaries, direct tool-name assumptions, and Git state before grouping work.
+
 ```sh
 npm run check       # formatting, types, core/feature tests, production build
 npm run dev         # build and start the local viewer
@@ -154,7 +183,7 @@ npm run dev         # build and start the local viewer
 To run the core and feature checks without starting an HTTP test server:
 
 ```sh
-npm test -- tests/core.test.ts tests/features.test.ts
+npm test -- tests/core.test.ts tests/features.test.ts tests/projects.test.ts
 ```
 
 Runtime dependencies: none. Requires Node 20+.
@@ -162,6 +191,7 @@ Runtime dependencies: none. Requires Node 20+.
 ```text
 src/
   core/                    transcript parsing, discovery, search, and reconstruction
+    projects.ts            directory identities inferred from recorded working folders
   server.ts                local read-only JSON API and static assets
   cli.ts                   command-line entry point
 ui/
@@ -173,6 +203,9 @@ ui/
   features/
     library/
       library.tsx          session filters, search, and pagination
+      session-list.ts      shared project grouping and session matching
+      session-navigation.tsx project/date navigation and expansion choices
+      use-session-search.ts shared transcript-search request
     session/
       session-page.tsx     selected-session request and view navigation
       transcript.tsx       paired human/agent turns and tool disclosures
@@ -196,6 +229,8 @@ ui/
     responsive.css         tablet and phone layout
 scripts/
   build.mjs                bundles the server, UI, and local styles
+docs/
+  code-review.md           FOG-65 audit before project grouping and additional readers
 tests/                    core, feature, and HTTP server tests
 ```
 
@@ -266,3 +301,34 @@ directory cannot be removed. Existing backend processes must be restarted to pic
   dependencies. It survives route changes and reloads; mobile navigation and focus mode stay separate.
 - Preserved the configured Claude session folders. Foglio tasks were read for discussion only.
 - Verification uses `npm run check`; browser and visual verification remain with the user.
+
+### 2026-10-21 — FOG-65 review and FOG-66 directory grouping
+
+- Recorded the existing project filters, search/reader boundaries, six files with direct tool-name
+  assumptions, and Git state in `docs/code-review.md`.
+- Added directory-based project metadata during discovery, independently of cached transcript
+  summaries. Groups use full paths and the highest ancestor recorded in session history; Git does
+  not influence grouping. Home and filesystem-root sessions cannot swallow other groups.
+- Added project/date navigation, activity ordering, counts, folder status, three initially open
+  groups, five-session batches, and access to older selected sessions. The grouping preference is
+  saved; manual expansion choices survive search and switching grouping modes during the visit.
+- Shared one transcript search between sidebar and library. The existing project filter, project
+  count, table labels, and breadcrumb use the same project metadata.
+- Added focused directory-inference, collision, missing-folder refresh, ordering, and search tests
+  to `npm run check`. Existing Claude source folders and transcript reconstruction are unchanged.
+- Validation: formatting, type checking, all 31 core/feature/project tests, and the production build
+  passed. FOG-65 and FOG-66 were marked done in Foglio with the agreed directory-grouping decisions.
+- Browser and visual verification remain with the user. Restart the backend after building to
+  load the new project metadata; an older server falls back to its recorded folder labels.
+
+### 2026-10-21 — Clearer project navigation
+
+- Replaced repeated full-path and “Last activity” rows with a compact folder header, count, and time.
+- Show parent directory context only when folder names collide, expanding it just enough to
+  distinguish each path. Full paths remain in tooltips and accessible labels.
+- Indented project sessions with a quiet connecting rule and removed their repeated project names.
+  Kept date navigation's layout, grouping behavior, and existing expansion choices.
+- Aligned chevrons, folder icons, names, and counts on the same grid row. Timestamps and directory
+  context sit directly under the name, without pulling the icons down between the two lines.
+- Added regression coverage for duplicate-name directory labels; no extra state or dependency was
+  needed. Browser and visual verification remain with the user.

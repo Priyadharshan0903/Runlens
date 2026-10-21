@@ -7,18 +7,23 @@ import {
   StackIcon,
   SunIcon,
 } from "@phosphor-icons/react";
-import { useMemo } from "preact/hooks";
 import type { SessionSummary } from "../../src/core/types.js";
+import { SessionNavigation } from "../features/library/session-navigation.js";
 import { BrandMark } from "../shared/brand.js";
-import { dayGroup, formatAgo, projectName } from "../shared/format.js";
-import type { SessionMeta, Theme } from "../shared/use-preferences.js";
+import type { SessionMeta, SidebarGrouping, Theme } from "../shared/use-preferences.js";
 
 interface SidebarProps {
   sessions: SessionSummary[];
+  pinnedCount: number;
   annotations: Record<string, SessionMeta>;
   selectedId?: string;
   scope: "all" | "pinned";
   theme: Theme;
+  grouping: SidebarGrouping;
+  onGroupingChange: (grouping: SidebarGrouping) => void;
+  query: string;
+  searchPending: boolean;
+  searchError?: string;
   onThemeChange: (theme: Theme) => void;
   onRefresh: () => void;
   onNavigate: () => void;
@@ -32,29 +37,20 @@ const THEMES = [
 
 export function Sidebar({
   sessions,
+  pinnedCount,
   annotations,
   selectedId,
   scope,
   theme,
+  grouping,
+  onGroupingChange,
+  query,
+  searchPending,
+  searchError,
   onThemeChange,
   onRefresh,
   onNavigate,
 }: SidebarProps) {
-  const recentGroups = useMemo(() => {
-    const groups = new Map<string, SessionSummary[]>();
-
-    for (const session of sessions.slice(0, 30)) {
-      const day = dayGroup(session.updatedAt);
-      const group = groups.get(day) ?? [];
-      group.push(session);
-      groups.set(day, group);
-    }
-
-    return [...groups];
-  }, [sessions]);
-
-  const pinnedCount = sessions.filter((session) => annotations[session.id]?.pinned).length;
-
   return (
     <aside
       id="workspace-sidebar"
@@ -88,7 +84,7 @@ export function Sidebar({
       </nav>
 
       <div class="recent-heading">
-        <span>Recent sessions</span>
+        <span>Sessions</span>
         <button
           class="icon-button"
           onClick={onRefresh}
@@ -99,31 +95,16 @@ export function Sidebar({
         </button>
       </div>
 
-      <nav class="recent-list" aria-label="Recent sessions">
-        {recentGroups.map(([day, group]) => (
-          <section key={day}>
-            <h2 class="day">{day}</h2>
-            {group.map((session) => (
-              <a
-                key={session.id}
-                class={`recent-item ${session.id === selectedId ? "active" : ""}`}
-                href={`#/s/${session.id}`}
-                aria-current={session.id === selectedId ? "page" : undefined}
-              >
-                <span class="recent-title">
-                  {annotations[session.id]?.pinned && <PushPinIcon size={12} />}
-                  {annotations[session.id]?.title || session.title}
-                </span>
-                <span class="recent-meta">
-                  {projectName(session.cwd)}
-                  <span>{formatAgo(session.updatedAt)}</span>
-                </span>
-              </a>
-            ))}
-          </section>
-        ))}
-        {!sessions.length && <p class="side-message">Your sessions will appear here.</p>}
-      </nav>
+      <SessionNavigation
+        sessions={sessions}
+        annotations={annotations}
+        selectedId={selectedId}
+        grouping={grouping}
+        onGroupingChange={onGroupingChange}
+        query={query}
+        searchPending={searchPending}
+        searchError={searchError}
+      />
 
       <div class="sidebar-footer">
         <div class="privacy-line">

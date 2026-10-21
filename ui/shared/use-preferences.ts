@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "preact/hooks";
 
 export type Theme = "light" | "dark" | "system";
+export type SidebarGrouping = "project" | "date";
 
 export interface SessionMeta {
   pinned?: boolean;
@@ -13,6 +14,7 @@ interface Preferences {
   theme: Theme;
   live: boolean;
   sidebarCollapsed: boolean;
+  sidebarGrouping: SidebarGrouping;
   sessions: Record<string, SessionMeta>;
 }
 
@@ -21,6 +23,7 @@ const DEFAULT_PREFERENCES: Preferences = {
   theme: "system",
   live: false,
   sidebarCollapsed: false,
+  sidebarGrouping: "project",
   sessions: {},
 };
 
@@ -49,6 +52,7 @@ function readPreferences(): Preferences {
       theme: ["light", "dark", "system"].includes(stored.theme) ? stored.theme : "system",
       live: stored.live === true,
       sidebarCollapsed: stored.sidebarCollapsed === true,
+      sidebarGrouping: stored.sidebarGrouping === "date" ? "date" : "project",
       sessions,
     };
   } catch {
@@ -123,5 +127,21 @@ export function usePreferences() {
     }));
   }, []);
 
-  return { preferences, storageError, updateMeta, setTheme, setLive, toggleSidebar };
+  const setSidebarGrouping = useCallback(function setSidebarGrouping(
+    sidebarGrouping: SidebarGrouping,
+  ) {
+    setPreferences((previous) =>
+      previous.sidebarGrouping === sidebarGrouping ? previous : { ...previous, sidebarGrouping },
+    );
+  }, []);
+
+  return {
+    preferences,
+    storageError,
+    updateMeta,
+    setTheme,
+    setLive,
+    toggleSidebar,
+    setSidebarGrouping,
+  };
 }

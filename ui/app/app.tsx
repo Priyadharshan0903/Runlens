@@ -5,10 +5,12 @@ import {
   SidebarSimpleIcon,
 } from "@phosphor-icons/react";
 import { render } from "preact";
-import { useEffect, useRef, useState } from "preact/hooks";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { SessionPage } from "../features/session/session-page.js";
 import { projectName } from "../shared/format.js";
 import { Library, type SessionLibrary } from "../features/library/library.js";
+import { matchingSessions, sessionProject } from "../features/library/session-list.js";
+import { useSessionSearch } from "../features/library/use-session-search.js";
 import { usePreferences } from "../shared/use-preferences.js";
 import { useResource } from "../shared/use-resource.js";
 import { Sidebar } from "./sidebar.js";
@@ -16,6 +18,7 @@ import { Sidebar } from "./sidebar.js";
 // The URL owns navigation. Filters belong to Library; fetched session data belongs to SessionPage.
 type Route = { page: "library"; scope: "all" | "pinned" } | { page: "session"; id: string };
 type LayoutMode = "default" | "navigation" | "focus";
+const NO_SESSIONS: SessionLibrary["sessions"] = [];
 
 function readRoute(): Route {
   const sessionId = location.hash.match(/^#\/s\/([\w-]+)/)?.[1];
@@ -30,15 +33,28 @@ function App() {
   const [query, setQuery] = useState("");
   const searchInput = useRef<HTMLInputElement>(null);
   const mainContent = useRef<HTMLElement>(null);
-  const { preferences, storageError, updateMeta, setTheme, setLive, toggleSidebar } =
-    usePreferences();
+  const {
+    preferences,
+    storageError,
+    updateMeta,
+    setTheme,
+    setLive,
+    toggleSidebar,
+    setSidebarGrouping,
+  } = usePreferences();
   const library = useResource<SessionLibrary>("/api/sessions", {
     pollInterval: preferences.live ? 15_000 : 0,
   });
 
   const selectedId = route.page === "session" ? route.id : undefined;
   const scope = route.page === "library" ? route.scope : "all";
-  const sessions = library.data?.sessions ?? [];
+  const sessions = library.data?.sessions ?? NO_SESSIONS;
+  const navigationQuery = route.page === "library" ? query : "";
+  const search = useSessionSearch(query, route.page === "library");
+  const filteredSessions = useMemo(
+    () => matchingSessions(sessions, preferences.sessions, navigationQuery, search.matches),
+    [sessions, preferences.sessions, navigationQuery, search.matches],
+  );
   const selectedSummary = sessions.find((session) => session.id === selectedId);
   const navigationOpen = layoutMode === "navigation";
   const focusMode = layoutMode === "focus";
@@ -100,11 +116,19 @@ function App() {
           />
         )}
         <Sidebar
-          sessions={sessions}
+          sessions={filteredSessions}
+          pinnedCount={
+            sessions.filter((session) => preferences.sessions[session.id]?.pinned).length
+          }
           annotations={preferences.sessions}
           selectedId={selectedId}
           scope={scope}
           theme={preferences.theme}
+          grouping={preferences.sidebarGrouping}
+          onGroupingChange={setSidebarGrouping}
+          query={navigationQuery}
+          searchPending={search.status === "loading"}
+          searchError={search.error}
           onThemeChange={setTheme}
           onRefresh={library.refresh}
           onNavigate={() => setLayoutMode("default")}
@@ -139,7 +163,11 @@ function App() {
                     Sessions
                   </a>
                   <span>/</span>
-                  <span class="crumb-current">{projectName(selectedSummary?.cwd)}</span>
+                  <span class="crumb-current" title={selectedSummary?.cwd}>
+                    {selectedSummary
+                      ? sessionProject(selectedSummary).name
+                      : projectName(undefined)}
+                  </span>
                 </>
               ) : (
                 <>
@@ -178,6 +206,8 @@ function App() {
             {route.page === "library" ? (
               <Library
                 library={library}
+                matching={filteredSessions}
+                search={search}
                 query={query}
                 scope={route.scope}
                 annotations={preferences.sessions}

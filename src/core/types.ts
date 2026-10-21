@@ -102,11 +102,21 @@ export interface Session {
   unlinkedAgents: AgentRun[];
 }
 
+export interface SessionProject {
+  /** Full directory path, or "no-project" for home/unknown working folders. */
+  id: string;
+  name: string;
+  path?: string;
+  availability: "available" | "missing" | "unknown";
+}
+
 export interface SessionSummary {
   id: string;
   title: string;
   firstPrompt: string;
   cwd?: string;
+  /** Inferred from the working directories recorded across the session library. */
+  project?: SessionProject;
   startedAt?: string;
   updatedAt: string;
   sizeBytes: number;

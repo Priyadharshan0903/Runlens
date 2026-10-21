@@ -8,6 +8,7 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import { parseRecords } from "./parse.js";
+import { assignSessionProjects } from "./projects.js";
 import { sessionId, subagentDir } from "./session.js";
 import type { SessionSummary } from "./types.js";
 
@@ -49,7 +50,7 @@ export async function listSessions(roots: string[]): Promise<Listing> {
   }
 
   sessions.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-  return { sessions, files };
+  return { sessions: await assignSessionProjects(sessions), files };
 }
 
 async function summarize(file: string): Promise<SessionSummary | null> {
