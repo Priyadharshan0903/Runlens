@@ -1,0 +1,223 @@
+@font-face {
+  font-family: "Geist";
+  font-weight: 400;
+  font-display: swap;
+  src: url("/geist-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Geist";
+  font-weight: 500;
+  font-display: swap;
+  src: url("/geist-500.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Geist";
+  font-weight: 600;
+  font-display: swap;
+  src: url("/geist-600.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Geist Mono";
+  font-weight: 400;
+  font-display: swap;
+  src: url("/geist-mono-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Geist Mono";
+  font-weight: 500;
+  font-display: swap;
+  src: url("/geist-mono-500.woff2") format("woff2");
+}
+
+/* Runlens: a framed workspace with a neutral canvas and teal on trace data.
+   At 1440px: 248px navigation + 1192px workspace. The 8px sheet inset and
+   32px gutters leave 1118px; the detail grid is 846px + 24px gap + 248px inspector. */
+:root {
+  --frame: #f3f5f5;
+  --bg: #ffffff;
+  --surface: #fafbfb;
+  --surface-2: #eef1f1;
+  --ink: #202525;
+  --ink-2: #424a4a;
+  --muted: #606969;
+  --faint: #697272;
+  --line: #e7ebeb;
+  --line-strong: #ced5d5;
+  --active: #e6eaea;
+  --accent: #1b6c80;
+  --accent-soft: #eaf3f5;
+  --tick-look: #b2bdbf;
+  --tick-run: #788e92;
+  --tick-change: #344b50;
+  --tick-other: #c6cfcf;
+  --ok: #247747;
+  --fail: #b92c3c;
+  --fail-soft: #fff1f2;
+  --added: #247747;
+  --removed: #b92c3c;
+  --sans: "Geist", ui-sans-serif, -apple-system, "Segoe UI", sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --radius: 8px;
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  --frame: #111111;
+  --bg: #191919;
+  --surface: #1e1e1e;
+  --surface-2: #272727;
+  --ink: #eeeeee;
+  --ink-2: #cccccc;
+  --muted: #b4b4b4;
+  --faint: #999999;
+  --line: #2c2c2c;
+  --line-strong: #444444;
+  --active: #292929;
+  --accent: #87becb;
+  --accent-soft: #233033;
+  --tick-look: #5c6668;
+  --tick-run: #87999d;
+  --tick-change: #c4d1d3;
+  --tick-other: #484c4c;
+  --ok: #83c69d;
+  --fail: #f08b99;
+  --fail-soft: #322125;
+  --added: #83c69d;
+  --removed: #f08b99;
+  color-scheme: dark;
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#app {
+  margin: 0;
+  height: 100%;
+}
+body {
+  background: var(--frame);
+  color: var(--ink);
+  font: 400 14px/1.5 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "ss01";
+}
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+h1 {
+  font-size: 26px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.035em;
+}
+h2 {
+  font-size: 15px;
+  font-weight: 600;
+}
+h3 {
+  font-size: 12px;
+  font-weight: 500;
+}
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+button {
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+input,
+textarea,
+select {
+  min-width: 0;
+}
+button:disabled {
+  cursor: wait;
+  color: var(--faint);
+}
+a {
+  color: inherit;
+  text-decoration: none;
+}
+code,
+pre,
+kbd {
+  font-family: var(--mono);
+  font-size: 12px;
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+::selection {
+  background: var(--accent-soft);
+  color: var(--ink);
+}
+mark {
+  background: var(--accent-soft);
+  color: var(--ink);
+  padding: 0 2px;
+}
+.num {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.quiet {
+  color: var(--muted);
+}
+.text-button {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.text-button:hover {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.icon-button {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  color: var(--muted);
+  border-radius: 6px;
+}
+.icon-button:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.button {
+  min-height: 33px;
+  padding: 6px 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+.button.secondary {
+  border: 1px solid var(--line-strong);
+  background: var(--bg);
+}
+.button.secondary:hover {
+  background: var(--surface);
+  border-color: var(--muted);
+}

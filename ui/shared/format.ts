@@ -1,0 +1,161 @@
+// Display helpers shared by the UI components.
+
+/** What a tool call does, from the reader's point of view. Drives color and grouping. */
+export type Kind = "look" | "change" | "run" | "delegate" | "other";
+
+const KINDS: Record<string, Kind> = {
+  Read: "look",
+  Grep: "look",
+  Glob: "look",
+  LS: "look",
+  Edit: "change",
+  MultiEdit: "change",
+  Write: "change",
+  NotebookEdit: "change",
+  Bash: "run",
+  BashOutput: "run",
+  KillShell: "run",
+  Agent: "delegate",
+  Task: "delegate",
+  Skill: "delegate",
+};
+
+export function kindOf(name: string): Kind {
+  return KINDS[name] ?? "other";
+}
+
+const VERBS: Record<string, string> = {
+  Read: "Read",
+  Grep: "Search",
+  Glob: "Find files",
+  LS: "List",
+  Edit: "Edit",
+  MultiEdit: "Edit",
+  Write: "Write",
+  NotebookEdit: "Edit notebook",
+  Bash: "Run",
+  BashOutput: "Check output",
+  KillShell: "Stop",
+  Agent: "Subagent",
+  Task: "Subagent",
+  Skill: "Skill",
+  WebSearch: "Web search",
+  WebFetch: "Fetch",
+  TodoWrite: "Update todos",
+  ToolSearch: "Load tools",
+};
+
+/** The verb shown for a call, and the summary to show after it. MCP tools show their server. */
+export function describeCall(name: string, summary: string): { verb: string; detail: string } {
+  const mcp = name.match(/^mcp__(.+?)__(.+)$/);
+  if (mcp) {
+    const server = mcp[1]
+      .replace(/^claude_ai_/, "")
+      .replace(/^plugin_[^_]+_/, "")
+      .replace(/_/g, " ");
+    return {
+      verb: server,
+      detail: [mcp[2].replace(/_/g, " "), summary].filter(Boolean).join("  "),
+    };
+  }
+  return { verb: VERBS[name] ?? name, detail: summary };
+}
+
+export function formatDuration(ms: number | undefined): string {
+  if (ms === undefined || !Number.isFinite(ms) || ms < 0) return "";
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  const s = ms / 1000;
+  if (s < 60) return `${s.toFixed(s < 10 ? 1 : 0)}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ${Math.round(s % 60)}s`;
+  const h = Math.floor(m / 60);
+  if (h < 48) return `${h}h ${m % 60}m`;
+  return `${Math.floor(h / 24)}d ${h % 24}h`;
+}
+
+export function between(start?: string, end?: string): number | undefined {
+  if (!start || !end) return undefined;
+  const ms = Date.parse(end) - Date.parse(start);
+  return Number.isFinite(ms) ? ms : undefined;
+}
+
+export function formatAgo(iso: string | undefined, now = Date.now()): string {
+  if (!iso) return "";
+  const ms = now - Date.parse(iso);
+  if (!Number.isFinite(ms)) return "";
+  const min = Math.round(ms / 60_000);
+  if (min < 1) return "just now";
+  if (min < 60) return `${min}m ago`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.round(h / 24);
+  if (d < 7) return `${d}d ago`;
+  return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+
+export function formatClock(iso: string | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? ""
+    : d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+}
+
+/** "13:57" today, "2 Oct, 13:57" on another day. */
+export function formatWhen(iso: string | undefined, now = new Date()): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const time = formatClock(iso);
+  return d.toDateString() === now.toDateString()
+    ? time
+    : `${d.toLocaleDateString(undefined, { day: "numeric", month: "short" })}, ${time}`;
+}
+
+/** Sidebar section for a session, by the day it was last active. */
+export function dayGroup(iso: string, now = new Date()): string {
+  const d = new Date(iso);
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const day = 86_400_000;
+  const t = d.getTime();
+  if (t >= startOfToday) return "Today";
+  if (t >= startOfToday - day) return "Yesterday";
+  if (t >= startOfToday - 6 * day) return "Earlier this week";
+  if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth())
+    return "Earlier this month";
+  return d.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+}
+
+export function formatCost(usd: number | undefined): string {
+  if (usd === undefined) return "";
+  if (usd === 0) return "$0.00";
+  return usd < 0.01 ? "<$0.01" : `$${usd.toFixed(2)}`;
+}
+
+/** "/Users/me/Desktop/Projects/foo" → "foo" */
+export function projectName(cwd: string | undefined): string {
+  if (!cwd) return "unknown";
+  return cwd.split("/").filter(Boolean).pop() ?? cwd;
+}
+
+/** A stable hue per project, so the same project has the same dot everywhere. */
+export function projectHue(cwd: string | undefined): number {
+  let hash = 0;
+  for (const ch of cwd ?? "") hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  return hash % 360;
+}
+
+export function firstLine(text: string | undefined, max = 140): string {
+  // Skip blank lines and code fences so "```json\n{...}" doesn't summarise as "```json".
+  const line =
+    (text ?? "")
+      .trim()
+      .split("\n")
+      .find((l) => l.trim() && !l.trim().startsWith("```")) ?? "";
+  const clean = line.replace(/^#+\s*/, "").replace(/\*\*/g, "");
+  return clean.length > max ? clean.slice(0, max - 1) + "…" : clean;
+}
+
+export function plural(n: number, one: string, many = `${one}s`): string {
+  return `${n.toLocaleString()} ${n === 1 ? one : many}`;
+}
