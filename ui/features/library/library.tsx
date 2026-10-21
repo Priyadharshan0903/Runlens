@@ -222,7 +222,7 @@ export function Library({
           <p>
             {sessions.length
               ? "Try another search, project, or date range."
-              : "Runlens reads your local Claude Code history. Start a Claude Code session, then refresh this library."}
+              : "Runlens reads your configured local session folders. Start a session with a supported agent, then refresh this library."}
           </p>
           {!!sessions.length && (
             <button class="button secondary" onClick={clearFilters}>

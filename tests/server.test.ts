@@ -1,12 +1,16 @@
 import { request } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { claudeReader } from "../src/sources/claude/reader.js";
 import { createServer } from "../src/server.js";
 import { makeProjectsRoot, prompt, say } from "./helpers.js";
 
 const p = makeProjectsRoot();
 p.writeSession("s1", [prompt("hello"), say("hi")]);
-const server = createServer({ roots: [p.root], uiDir: "/nonexistent" });
+const server = createServer({
+  sources: [{ reader: claudeReader, roots: [p.root] }],
+  uiDir: "/nonexistent",
+});
 let port = 0;
 
 beforeAll(

@@ -1,5 +1,46 @@
-// The shapes runlens produces. The UI only ever sees these, never raw transcript lines,
-// so a change in Claude Code's file format is contained to parse.ts.
+// Shared data produced by source adapters. Features never interpret raw agent records.
+
+export interface SessionSource {
+  id: string;
+  name: string;
+}
+
+export type ToolKind = "look" | "change" | "run" | "delegate" | "other";
+export type ToolIconName =
+  | "file"
+  | "files"
+  | "search"
+  | "edit"
+  | "write"
+  | "terminal"
+  | "agent"
+  | "skill"
+  | "web"
+  | "link"
+  | "todo"
+  | "tools"
+  | "mcp"
+  | "other";
+
+export interface FileEffect {
+  path: string;
+  operation: "read" | "change";
+  /** Recorded replacement counts; applied only when the call succeeds. */
+  added: number;
+  removed: number;
+}
+
+export interface ToolAction {
+  kind: ToolKind;
+  verb: string;
+  icon: ToolIconName;
+  /** Overrides the summary for display, for example to include an MCP tool name. */
+  detail?: string;
+  command?: string;
+  replacement?: { before: string; after: string };
+  /** One effect per path per call. Empty or absent when no file activity is recorded. */
+  files?: FileEffect[];
+}
 
 export type ToolStatus = "ok" | "error" | "pending";
 
@@ -17,9 +58,12 @@ export interface ToolStep {
   name: string;
   /** One line describing the call, e.g. the command or the file path. */
   summary: string;
+  action: ToolAction;
   input: unknown;
   /** What the agent wrote right before making this call. Empty when it said nothing. */
   why?: string;
+  /** Recorded reasoning, when supplied by the agent; never inferred. */
+  reasoning?: string;
   at: string;
   durationMs?: number;
   result?: ToolResult;
@@ -84,6 +128,7 @@ export interface AgentRun {
 
 export interface Session {
   id: string;
+  source: SessionSource;
   title: string;
   cwd?: string;
   branch?: string;
@@ -112,6 +157,7 @@ export interface SessionProject {
 
 export interface SessionSummary {
   id: string;
+  source: SessionSource;
   title: string;
   firstPrompt: string;
   cwd?: string;

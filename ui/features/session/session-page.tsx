@@ -233,7 +233,7 @@ function SessionDetail({
             <div class="session-kicker">
               <span class="provider-label">
                 <StackIcon size={14} />
-                Claude Code
+                {session.source.name}
               </span>
               <span class="session-id">{session.id.slice(0, 8)}</span>
               <span class="freshness">

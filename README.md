@@ -160,6 +160,30 @@ Archives uploaded before this change need to be rebuilt to include these files.
 Claude Code's transcript format is not a documented API and can change. Tests use synthetic
 transcripts; coverage of the format is not a guarantee that every historical session will parse.
 
+## Agent readers
+
+Claude Code is the currently shipped adapter. Codex and Cursor readers are not included yet.
+Adapters implement `SourceReader` in `src/sources/types.ts` and register in `src/sources/index.ts`.
+
+```text
+agent files → source adapter → common events → shared turns and steps → session features
+```
+
+`src/sources/claude` owns Claude discovery, JSONL parsing, tool meanings, usage deduplication,
+and subagent linking. Shared code handles library merging, directory grouping, turn reconstruction,
+search matching, and HTTP routes. UI features use normalized actions and file effects rather than
+Claude tool names or input fields. Raw tool names and inputs remain available for inspection and
+exports. Source names come from session data.
+
+Existing Claude IDs remain unchanged, preserving session links and browser annotations. Other
+adapters receive IDs prefixed with their source ID, so the same local session ID can occur in
+different agents. Project grouping happens after sources are merged and uses the same directory
+rules across agents. Search consumes each adapter's event iterator, stops on a match, and propagates
+cancellation; readers close their file handles when iteration ends. Missing cost, token usage, and
+reasoning remain absent rather than being estimated.
+
+See [Adding a source adapter](docs/source-adapters.md) for the contract and extension steps.
+
 ## Code structure and state ownership
 
 The UI uses Preact and follows the same state model as React: store user choices and external
@@ -188,8 +212,8 @@ Prettier enforces multiline formatting, and TypeScript rejects unused locals and
 
 ## Develop
 
-The [FOG-65 code review](docs/code-review.md) records the current project-filter behavior,
-search/reader boundaries, direct tool-name assumptions, and Git state before grouping work.
+The [FOG-65 code review](docs/code-review.md) records the historical project-filter behavior,
+search/reader boundaries, direct tool-name assumptions, and Git state before grouping and adapter work.
 
 ```sh
 npm run check       # formatting, types, core/feature tests, production build
@@ -199,7 +223,7 @@ npm run dev         # build and start the local viewer
 To run the core and feature checks without starting an HTTP test server:
 
 ```sh
-npm test -- tests/core.test.ts tests/features.test.ts tests/projects.test.ts
+npm test -- tests/core.test.ts tests/features.test.ts tests/projects.test.ts tests/sources.test.ts
 ```
 
 Runtime dependencies: none. Requires Node 20+.
@@ -292,6 +316,24 @@ The build writes generated files in place under `dist/`, so it also works when t
 directory cannot be removed. Existing backend processes must be restarted to pick up backend changes.
 
 ## Change log
+
+### 2026-10-22 — FOG-67 source adapters
+
+- Added a typed reader contract and an explicit adapter registry. Moved Claude's discovery,
+  parser, tool normalization, and subagent linking into `src/sources/claude`.
+- Made discovery, session loading, and streaming search dispatch through the owning reader.
+  Merge all sources before project inference; retain existing Claude IDs and namespace other sources.
+- Replaced Claude tool-name and raw-input checks in session features with common actions, file
+  effects, command/replacement details, and semantic icon names. No extra UI state or runtime
+  dependency was introduced.
+- Preserve raw tool inputs and recorded reasoning while leaving unavailable metadata absent.
+  The source label is supplied by the reader; the shipped source remains Claude Code.
+- Added a fake second reader using JSON documents and unrelated tool names to verify mixed-source
+  IDs, project grouping, file changes, failures, optional metadata, search, and cancellation.
+- Added `tests/sources.test.ts` to the server-free `npm run check` command and documented how to
+  add another adapter in `docs/source-adapters.md`. Browser verification remains with the user.
+- Validation: `npm run check` passed formatting, TypeScript, all 40 core/feature/project/adapter
+  tests, and the production build. HTTP and browser checks were not run locally.
 
 ### 2026-10-21 — Runlens workspace redesign
 

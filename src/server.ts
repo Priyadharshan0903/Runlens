@@ -10,12 +10,13 @@ import {
 } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join } from "node:path";
+import type { SourceFolders } from "./sources/types.js";
 import { listSessions, type Listing } from "./core/discover.js";
 import { loadSession } from "./core/session.js";
 import { searchSessions } from "./core/search.js";
 
 export interface ServerOptions {
-  roots: string[];
+  sources: SourceFolders[];
   uiDir: string;
 }
 
@@ -27,7 +28,8 @@ const CONTENT_TYPES: Record<string, string> = {
   ".woff2": "font/woff2",
 };
 
-export function createServer({ roots, uiDir }: ServerOptions): Server {
+export function createServer({ sources, uiDir }: ServerOptions): Server {
+  const roots = sources.flatMap((source) => source.roots);
   let listing: Listing | undefined;
 
   const server = createHttpServer(async (req, res) => {
@@ -42,7 +44,7 @@ export function createServer({ roots, uiDir }: ServerOptions): Server {
         // Stop scanning files when a new query replaces this request or its browser disconnects.
         const cancellation = new AbortController();
         res.once("close", () => cancellation.abort());
-        listing = await listSessions(roots);
+        listing = await listSessions(sources);
         const matches = await searchSessions(
           listing,
           url.searchParams.get("q") ?? "",
@@ -53,16 +55,16 @@ export function createServer({ roots, uiDir }: ServerOptions): Server {
       }
 
       if (path === "/api/sessions") {
-        listing = await listSessions(roots);
+        listing = await listSessions(sources);
         return json(res, { roots, sessions: listing.sessions });
       }
 
       const match = path.match(/^\/api\/sessions\/([\w-]+)$/);
       if (match) {
-        listing ??= await listSessions(roots);
+        listing ??= await listSessions(sources);
         let file = listing.files.get(match[1]);
         if (!file) {
-          listing = await listSessions(roots);
+          listing = await listSessions(sources);
           file = listing.files.get(match[1]);
         }
         if (!file) return json(res, { error: "Session not found" }, 404);

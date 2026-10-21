@@ -1,5 +1,4 @@
 import type { AgentRun, Session, ToolStep, Turn, TokenUsage } from "../../../src/core/types.js";
-import { kindOf } from "../../shared/format.js";
 
 export interface CallRef {
   step: ToolStep;
@@ -89,35 +88,23 @@ export function summarizeSession(session: Session): SessionOverview {
 export function sessionFiles(calls: CallRef[]): FileActivity[] {
   const files = new Map<string, FileActivity>();
   for (const { step } of calls) {
-    const input = step.input as Record<string, unknown> | undefined;
-    const path = input?.file_path ?? input?.notebook_path;
-    if (typeof path !== "string" || !path) continue;
-    const file = files.get(path) ?? { path, calls: [], edits: 0, reads: 0, added: 0, removed: 0 };
-    file.calls.push(step);
-    if (kindOf(step.name) === "change") {
-      file.edits++;
-      // These are recorded replacement blocks, not a net Git diff; failed calls stay visible.
-      if (step.result?.status === "ok") {
-        if (step.name === "Edit") {
-          file.added += lines(input?.new_string);
-          file.removed += lines(input?.old_string);
-        } else if (step.name === "Write") file.added += lines(input?.content);
-        else if (step.name === "MultiEdit" && Array.isArray(input?.edits)) {
-          for (const edit of input.edits) {
-            file.added += lines(edit?.new_string);
-            file.removed += lines(edit?.old_string);
-          }
+    for (const effect of step.action.files ?? []) {
+      const { path } = effect;
+      const file = files.get(path) ?? { path, calls: [], edits: 0, reads: 0, added: 0, removed: 0 };
+      file.calls.push(step);
+      if (effect.operation === "change") {
+        file.edits++;
+        // Failed and pending calls are attempts; only successful results contribute line counts.
+        if (step.result?.status === "ok") {
+          file.added += effect.added;
+          file.removed += effect.removed;
         }
-      }
-    } else file.reads++;
-    files.set(path, file);
+      } else file.reads++;
+      files.set(path, file);
+    }
   }
   return [...files.values()].sort((a, b) => b.edits - a.edits || a.path.localeCompare(b.path));
 }
-function lines(value: unknown): number {
-  return typeof value === "string" && value ? value.split("\n").length : 0;
-}
-
 export function totalTokens(usage?: TokenUsage): number | undefined {
   return usage ? usage.input + usage.output + usage.cacheRead + usage.cacheWrite : undefined;
 }

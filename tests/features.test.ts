@@ -1,9 +1,9 @@
+import { claudeReader } from "../src/sources/claude/reader.js";
 import { appendFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { listSessions } from "../src/core/discover.js";
-import { parseRecords } from "../src/core/parse.js";
+import { parseRecords } from "../src/sources/claude/parse.js";
 import { searchSessions } from "../src/core/search.js";
-import { loadSession } from "../src/core/session.js";
 import { buildTurns } from "../src/core/tree.js";
 import { formatCost } from "../ui/shared/format.js";
 import {
@@ -13,7 +13,7 @@ import {
   summarizeSession,
   totalTokens,
 } from "../ui/features/session/session-data.js";
-import { call, makeProjectsRoot, prompt, result, say, tick } from "./helpers.js";
+import { loadSession, call, makeProjectsRoot, prompt, result, say, tick } from "./helpers.js";
 
 const usage = (id: string, output: number) => ({
   type: "assistant",
@@ -76,7 +76,7 @@ describe("full transcript search", () => {
   it("stops a superseded search instead of continuing to read transcripts", async () => {
     const projects = makeProjectsRoot();
     projects.writeSession("cancelled", [prompt("check logs"), say("Some evidence")]);
-    const listing = await listSessions([projects.root]);
+    const listing = await listSessions([{ reader: claudeReader, roots: [projects.root] }]);
     const controller = new AbortController();
     const search = searchSessions(listing, "evidence", controller.signal);
     controller.abort();
@@ -91,7 +91,7 @@ describe("full transcript search", () => {
       result("t1", "a unique refresh failure appears here"),
     ]);
     p.writeSession("miss", [prompt("unrelated"), say("Nothing to report")]);
-    const listing = await listSessions([p.root]);
+    const listing = await listSessions([{ reader: claudeReader, roots: [p.root] }]);
     expect(await searchSessions(listing, "REFRESH FAILURE")).toEqual([
       { id: "hit", snippet: "a unique refresh failure appears here", source: "session" },
     ]);
@@ -101,7 +101,7 @@ describe("full transcript search", () => {
     const p = makeProjectsRoot();
     const file = p.writeSession("agent-search", [prompt("investigate")]);
     p.writeSubagent("agent-search", "a", [prompt("check"), say("refresh-token mismatch")]);
-    const listing = await listSessions([p.root]);
+    const listing = await listSessions([{ reader: claudeReader, roots: [p.root] }]);
     expect(await searchSessions(listing, "refresh-token")).toEqual([
       { id: "agent-search", snippet: "refresh-token mismatch", source: "subagent" },
     ]);
@@ -118,7 +118,7 @@ describe("full transcript search", () => {
       prompt("hello"),
       { ...prompt("invisible reminder"), isMeta: true },
     ]);
-    const listing = await listSessions([p.root]);
+    const listing = await listSessions([{ reader: claudeReader, roots: [p.root] }]);
     expect(await searchSessions(listing, "invisible reminder")).toEqual([]);
     expect(await searchSessions(listing, "h")).toEqual([]);
   });
@@ -199,8 +199,12 @@ describe("session reconstruction and file activity", () => {
   it("refreshes the subagent count when the main transcript hasn't changed", async () => {
     const p = makeProjectsRoot();
     p.writeSession("discovery", [prompt("hello")]);
-    expect((await listSessions([p.root])).sessions[0].subagents).toBe(0);
+    expect(
+      (await listSessions([{ reader: claudeReader, roots: [p.root] }])).sessions[0].subagents,
+    ).toBe(0);
     p.writeSubagent("discovery", "new", [prompt("new task")]);
-    expect((await listSessions([p.root])).sessions[0].subagents).toBe(1);
+    expect(
+      (await listSessions([{ reader: claudeReader, roots: [p.root] }])).sessions[0].subagents,
+    ).toBe(1);
   });
 });

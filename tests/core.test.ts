@@ -1,15 +1,32 @@
+import { claudeReader } from "../src/sources/claude/reader.js";
 import { describe, expect, it } from "vitest";
 import { listSessions } from "../src/core/discover.js";
-import { parseRecords } from "../src/core/parse.js";
-import { loadSession } from "../src/core/session.js";
-import { summarizeTool } from "../src/core/summarize.js";
+import { parseRecords } from "../src/sources/claude/parse.js";
+import { summarizeTool } from "../src/sources/claude/tools.js";
 import { buildTurns } from "../src/core/tree.js";
 import type { ToolStep } from "../src/core/types.js";
-import { call, jsonl, makeProjectsRoot, prompt, result, say, tick } from "./helpers.js";
+import {
+  loadSession,
+  call,
+  jsonl,
+  makeProjectsRoot,
+  prompt,
+  result,
+  say,
+  tick,
+} from "./helpers.js";
 
 const tools = (steps: { kind: string }[]) => steps.filter((s): s is ToolStep => s.kind === "tool");
 
 describe("parseRecords", () => {
+  it("uses the recorded working directory even when the file starts with a tool call", () => {
+    const { events } = parseRecords([
+      call("early-read", "Read", { file_path: "/work/demo/src/a.ts" }),
+      prompt("continue"),
+    ]);
+    expect(events[0]).toMatchObject({ type: "tool_use", summary: "src/a.ts" });
+  });
+
   it("keeps what the person typed and skips harness bookkeeping", () => {
     const { events } = parseRecords([
       prompt(
@@ -71,7 +88,7 @@ describe("buildTurns", () => {
       result("t2", "1 failed", { error: true }),
       say("Fixed it."),
     ]);
-    const { turns, stats } = buildTurns(events, "/work/demo");
+    const { turns, stats } = buildTurns(events);
 
     expect(turns).toHaveLength(1);
     const [read, bash] = tools(turns[0].steps);
@@ -233,7 +250,7 @@ describe("listSessions", () => {
     ]);
     p.writeSubagent("asked", "a1", [prompt("x")]);
 
-    const { sessions, files } = await listSessions([p.root]);
+    const { sessions, files } = await listSessions([{ reader: claudeReader, roots: [p.root] }]);
     expect(sessions).toEqual([
       expect.objectContaining({
         id: "asked",

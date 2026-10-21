@@ -1,8 +1,7 @@
 // Turns a flat list of transcript events into turns of steps:
 //   prompt → [why → tool call → result]… → final answer
 
-import type { Event } from "./parse.js";
-import { summarizeTool } from "./summarize.js";
+import type { Event } from "./events.js";
 import type { Stats, ToolStep, Turn } from "./types.js";
 
 /** Tool output beyond this many characters is cut, to keep the page light. */
@@ -17,7 +16,7 @@ export interface BuiltTurns {
   agentCalls: Map<string, string>;
 }
 
-export function buildTurns(events: Event[], cwd?: string): BuiltTurns {
+export function buildTurns(events: Event[]): BuiltTurns {
   const turns: Turn[] = [];
   const tools = new Map<string, ToolStep>();
   const agentCalls = new Map<string, string>();
@@ -83,9 +82,11 @@ export function buildTurns(events: Event[], cwd?: string): BuiltTurns {
           kind: "tool",
           id: e.id,
           name: e.name,
-          summary: summarizeTool(e.name, e.input, cwd),
+          summary: e.summary,
+          action: e.action,
           input: e.input,
           why: joined() || thought,
+          reasoning: thought,
           at: e.at,
         };
         pending = [];
