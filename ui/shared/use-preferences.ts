@@ -12,11 +12,17 @@ export interface SessionMeta {
 interface Preferences {
   theme: Theme;
   live: boolean;
+  sidebarCollapsed: boolean;
   sessions: Record<string, SessionMeta>;
 }
 
 const STORAGE_KEY = "runlens.workspace.v1";
-const DEFAULT_PREFERENCES: Preferences = { theme: "system", live: false, sessions: {} };
+const DEFAULT_PREFERENCES: Preferences = {
+  theme: "system",
+  live: false,
+  sidebarCollapsed: false,
+  sessions: {},
+};
 
 function readPreferences(): Preferences {
   try {
@@ -42,6 +48,7 @@ function readPreferences(): Preferences {
     return {
       theme: ["light", "dark", "system"].includes(stored.theme) ? stored.theme : "system",
       live: stored.live === true,
+      sidebarCollapsed: stored.sidebarCollapsed === true,
       sessions,
     };
   } catch {
@@ -109,5 +116,12 @@ export function usePreferences() {
     setPreferences((previous) => (previous.live === live ? previous : { ...previous, live }));
   }, []);
 
-  return { preferences, storageError, updateMeta, setTheme, setLive };
+  const toggleSidebar = useCallback(function toggleSidebar() {
+    setPreferences((previous) => ({
+      ...previous,
+      sidebarCollapsed: !previous.sidebarCollapsed,
+    }));
+  }, []);
+
+  return { preferences, storageError, updateMeta, setTheme, setLive, toggleSidebar };
 }

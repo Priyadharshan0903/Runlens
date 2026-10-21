@@ -57,6 +57,7 @@ export function Sidebar({
 
   return (
     <aside
+      id="workspace-sidebar"
       class="sidebar"
       aria-label="Workspace navigation"
       onClick={(event) => {

@@ -4,6 +4,20 @@
   height: 100dvh;
   overflow: hidden;
 }
+@media (min-width: 1101px) {
+  .sidebar-collapsed {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sidebar-collapsed .sidebar {
+    display: none;
+  }
+  .sidebar-collapsed .main {
+    margin-left: 8px;
+  }
+}
+.focus-mode .sidebar-toggle {
+  display: none;
+}
 .sidebar {
   background: var(--frame);
   display: flex;

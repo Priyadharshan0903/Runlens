@@ -1,4 +1,9 @@
-import { ArrowLeftIcon, ListIcon, MagnifyingGlassIcon } from "@phosphor-icons/react";
+import {
+  ArrowLeftIcon,
+  ListIcon,
+  MagnifyingGlassIcon,
+  SidebarSimpleIcon,
+} from "@phosphor-icons/react";
 import { render } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 import { SessionPage } from "../features/session/session-page.js";
@@ -25,7 +30,8 @@ function App() {
   const [query, setQuery] = useState("");
   const searchInput = useRef<HTMLInputElement>(null);
   const mainContent = useRef<HTMLElement>(null);
-  const { preferences, storageError, updateMeta, setTheme, setLive } = usePreferences();
+  const { preferences, storageError, updateMeta, setTheme, setLive, toggleSidebar } =
+    usePreferences();
   const library = useResource<SessionLibrary>("/api/sessions", {
     pollInterval: preferences.live ? 15_000 : 0,
   });
@@ -84,7 +90,7 @@ function App() {
         Skip to content
       </a>
       <div
-        class={`layout ${selectedId ? "has-session" : ""} ${focusMode ? "focus-mode" : ""} ${navigationOpen ? "menu-open" : ""}`}
+        class={`layout ${selectedId ? "has-session" : ""} ${focusMode ? "focus-mode" : ""} ${navigationOpen ? "menu-open" : ""} ${preferences.sidebarCollapsed ? "sidebar-collapsed" : ""}`}
       >
         {navigationOpen && (
           <button
@@ -107,10 +113,21 @@ function App() {
         <div class="workspace">
           <header class="topbar">
             <button
+              class="icon-button sidebar-toggle"
+              onClick={toggleSidebar}
+              aria-label={preferences.sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              title={preferences.sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              aria-expanded={!preferences.sidebarCollapsed}
+              aria-controls="workspace-sidebar"
+            >
+              <SidebarSimpleIcon size={20} />
+            </button>
+            <button
               class="icon-button mobile-menu"
               onClick={() => setLayoutMode(navigationOpen ? "default" : "navigation")}
               aria-label={navigationOpen ? "Close navigation" : "Open navigation"}
               aria-expanded={navigationOpen}
+              aria-controls="workspace-sidebar"
             >
               <ListIcon size={20} />
             </button>

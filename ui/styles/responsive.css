@@ -56,6 +56,9 @@
   .mobile-menu {
     display: inline-grid;
   }
+  .sidebar-toggle {
+    display: none;
+  }
   .main {
     margin-left: 8px;
   }

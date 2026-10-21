@@ -78,6 +78,10 @@ applied before the first paint; system mode follows operating-system changes. Fo
 locally. The layout moves navigation and the session inspector into dismissible panels on smaller
 screens. Tabs support arrow keys, Home, and End. Reduced-motion preferences are respected.
 
+On desktop, the sidebar button beside the breadcrumb collapses or expands navigation and gives
+the session more reading space. That choice is saved across navigation and reloads. Smaller screens
+keep their own menu drawer, independent of the desktop preference.
+
 The design uses a quiet frame, a flat session sheet, and teal on trace activity, with Geist for
 text and Geist Mono for code and identifiers. The session trace is the main visual element.
 
@@ -85,7 +89,7 @@ text and Geist Mono for code and identifiers. The session trace is the main visu
 
 - Everything stays on this machine. There are no model calls, uploads, analytics, or remote fonts.
 - Transcript files are only read, never edited or deleted.
-- Pins, display names, tags, notes, theme, and live-refresh preferences are saved in this browser's
+- Pins, display names, tags, notes, theme, sidebar visibility, and live-refresh preferences are saved in this browser's
   local storage under `runlens.workspace.v1`. They are specific to the browser and port; clearing
   site data removes them. Export JSON to keep a copy of an annotated session.
 - The server binds to `127.0.0.1`, checks the request hostname, and only opens discovered transcripts.
@@ -253,3 +257,12 @@ directory cannot be removed. Existing backend processes must be restarted to pic
 - Used a container query to stack the columns when the actual reading pane is narrower than 700 px.
   Kept subagent expansion, tool-call navigation, notes, and the right inspector intact.
 - Verification uses the existing combined check; browser and visual verification remain with the user.
+
+### 2026-10-21 — Collapsible workspace sidebar
+
+- Added an accessible desktop sidebar toggle beside the breadcrumb. Collapsing navigation gives
+  its width back to the workspace; the button remains available to expand it.
+- Saved the desktop choice in the existing preferences hook, without adding shell state or
+  dependencies. It survives route changes and reloads; mobile navigation and focus mode stay separate.
+- Preserved the configured Claude session folders. Foglio tasks were read for discussion only.
+- Verification uses `npm run check`; browser and visual verification remain with the user.
