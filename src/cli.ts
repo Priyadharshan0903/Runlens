@@ -8,6 +8,7 @@ import { parseArgs } from "node:util";
 import { listSessions } from "./core/discover.js";
 import { sourceReaders } from "./sources/index.js";
 import { createServer } from "./server.js";
+import { HistoryService } from "./mcp/history.js";
 
 declare const __VERSION__: string;
 
@@ -15,6 +16,7 @@ const HELP = `runlens: inspect your local agent sessions
 
 Usage
   npx runlens [options]
+  runlens mcp [--project <path>] [--allow-project <path>] [history options]
 
 Options
   --dir <path>   Override Claude Code "projects" folders (repeatable).
@@ -24,18 +26,26 @@ Options
                  Default: sessions and archived_sessions under $CODEX_HOME and ~/.codex
   --port <n>     Port to listen on (default 8740; the next free one is used if taken)
   --no-open      Don't open the browser
+  --project <path>  MCP only: current project (default: working directory)
+  --allow-project <path>  MCP only: allow an additional project (repeatable)
   -v, --version  Print the version
   -h, --help     Show this help
 
-Everything stays on this machine. Session files are read, never changed or uploaded.`;
+The viewer keeps history local. MCP returns selected excerpts to its client, which may send
+them to a model provider. Session files are read, never changed. See docs/mcp.md for limits.`;
 
 async function main() {
+  const args = process.argv.slice(2);
+  const mcp = args[0] === "mcp";
   const { values } = parseArgs({
+    args: mcp ? args.slice(1) : args,
     options: {
       dir: { type: "string", multiple: true },
       "codex-dir": { type: "string", multiple: true },
       port: { type: "string", default: "8740" },
       "no-open": { type: "boolean", default: false },
+      project: { type: "string" },
+      "allow-project": { type: "string", multiple: true },
       version: { type: "boolean", short: "v" },
       help: { type: "boolean", short: "h" },
     },
@@ -43,6 +53,8 @@ async function main() {
 
   if (values.help) return console.log(HELP);
   if (values.version) return console.log(__VERSION__);
+  if (!mcp && (values.project || values["allow-project"]))
+    fail("--project and --allow-project are only available with runlens mcp.");
 
   const overrides: Record<string, string[] | undefined> = {
     claude: values.dir,
@@ -58,6 +70,15 @@ async function main() {
   const roots = sources.flatMap((source) => source.roots);
   const missing = roots.filter((r) => !existsSync(r));
   if (missing.length) fail(`Folder not found: ${missing.join(", ")}`);
+  if (mcp) {
+    const { serveHistory } = await import("./mcp/server.js");
+    const history = new HistoryService((signal) => listSessions(sources, signal), {
+      project: resolve(values.project ?? process.cwd()),
+      allowProjects: values["allow-project"]?.map((path) => resolve(path)),
+    });
+    await serveHistory(history, __VERSION__);
+    return;
+  }
   if (!roots.length)
     fail(
       "No session folders found. Use --dir <Claude projects folder> or --codex-dir <Codex sessions folder>.",

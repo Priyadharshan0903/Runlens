@@ -10,13 +10,15 @@ export interface DiscoveredSession {
 export interface SearchFile {
   file: string;
   source: SearchMatch["source"];
+  /** Recorded fork parent, yielded earlier by searchFiles. Never supplied by a client. */
+  inheritedFile?: string;
 }
 
 /** Each adapter owns its file layout, record format, tool semantics, and subagent links. */
 export interface SourceReader {
   source: SessionSource;
   defaultRoots(env?: NodeJS.ProcessEnv): string[];
-  discover(roots: string[]): Promise<DiscoveredSession[]>;
+  discover(roots: string[], signal?: AbortSignal): Promise<DiscoveredSession[]>;
   load(file: string): Promise<Omit<Session, "source">>;
   /** Yield the main file first, then any child transcripts. Search stops on the first match. */
   searchFiles(file: string): AsyncIterable<SearchFile>;

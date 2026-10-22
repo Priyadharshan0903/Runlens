@@ -29,7 +29,8 @@
       <nav aria-label="Main navigation">
         <a href="#why">Why Runlens</a>
         <a href="#explore">Explore</a>
-        <a href="#next">What’s next</a>
+        <a href="#next">MCP</a>
+        <a href="#mcp">MCP setup</a>
       </nav>
       <a class="header-action" href="#install">Get Runlens <span aria-hidden="true">↗</span></a>
     </header>
@@ -67,7 +68,7 @@
           <div class="workspace-tabs" aria-label="Jump to a section">
             <a href="#explore">The whole run <span aria-hidden="true">↘</span></a>
             <a href="#why">The useful details <span aria-hidden="true">↘</span></a>
-            <a href="#next">The next chapter <span aria-hidden="true">↘</span></a>
+            <a href="#next">For your agents <span aria-hidden="true">↘</span></a>
           </div>
           <figure class="hero-shot">
             <a
@@ -388,13 +389,15 @@
 
       <section id="next" class="roadmap frame section-space" aria-labelledby="next-title">
         <div class="section-intro">
-          <h2 id="next-title" data-reveal>Next: history<br />for your agents.</h2>
+          <h2 id="next-title" data-reveal>Earlier work.<br />In reach.</h2>
           <div data-reveal>
             <p class="lead">
-              You can inspect the past. Next, we want your agents to learn from it, too.
+              Give your agent a way to find earlier decisions and fixes in your Claude Code and
+              Codex history.
             </p>
             <p class="roadmap-disclaimer">
-              MCP support is planned. These tools are not available in the current release.
+              Available as a source preview. MCP is not published to npm yet; the current
+              <code>npx runlens@latest</code> starts the viewer only.
             </p>
           </div>
         </div>
@@ -405,37 +408,34 @@
             ><span aria-hidden="true">→</span><span>A relevant past run</span>
           </div>
           <p>
-            The first goal: let a Codex session find an earlier Claude run in the same project and
-            retrieve its recorded outcome and failures. Less repeated investigation. Better
-            handoffs.
+            Ask Codex about a fix from an earlier Claude run, or pick up a decision from yesterday.
+            Runlens returns recorded excerpts, dates, and session IDs for the agent to inspect and
+            verify against today’s code.
           </p>
         </div>
         <div class="roadmap-details">
           <article data-reveal>
-            <h3>Search + summaries</h3>
+            <h3>Find, then inspect</h3>
             <p>
-              Two planned tools: <code>search_sessions</code> for relevant past sessions, and
-              <code>session_summary</code> for recorded requests, changes, failures, and final
-              answers.
+              The connection describes when to use <code>search_sessions</code> and how to follow a
+              match with <code>session_summary</code>. Your agent decides when to call them; you can
+              ask it directly, too.
             </p>
-            <p class="quiet">First milestone · read-only over stdio</p>
           </article>
           <article data-reveal>
             <h3>Context with boundaries</h3>
             <p>
-              Current project by default. Short, paged results with source, date, and session
-              provenance. Planned secret masking and exclusion of raw fetched web payloads, with
-              their limits documented.
+              Read-only, bounded results from the project you configure. Other projects need an
+              explicit startup grant. Secret masking is best effort; selected excerpts may reach
+              your agent’s model provider.
             </p>
-            <p class="quiet">Safety and response contract first</p>
           </article>
           <article data-reveal>
-            <h3>Setup you can trust</h3>
+            <h3>More comes later</h3>
             <p>
-              Tested Claude Code and Codex setup guidance is planned alongside v1. Change and
-              failure tools are later candidates; active-session awareness needs further validation.
+              Dedicated change and failure tools are later candidates. Active-session awareness
+              needs further validation. The preview currently exposes search and recorded summaries.
             </p>
-            <p class="quiet">Later ideas depend on v1 feedback</p>
           </article>
         </div>
         <a
@@ -444,6 +444,278 @@
           target="_blank"
           rel="noopener noreferrer"
           >Help shape what comes next <span aria-hidden="true">↗</span></a
+        >
+      </section>
+
+      <section id="mcp" class="mcp-setup frame section-space" aria-labelledby="mcp-title">
+        <div class="section-intro">
+          <h2 id="mcp-title" data-reveal>Connect your<br />agent’s history.</h2>
+          <div data-reveal>
+            <p class="lead">
+              After the MCP release, one command connects Claude Code or Codex. No source checkout
+              or build step. Your client starts Runlens; the viewer can stay closed.
+            </p>
+            <p class="roadmap-disclaimer">
+              MCP is not on npm yet. The commands below are for after the MCP release. Requires
+              Node.js 20+ and your agent’s CLI. To test today, open the source preview instructions
+              below. These examples use a macOS/Linux shell.
+            </p>
+          </div>
+        </div>
+        <div class="mcp-clients">
+          <article data-reveal>
+            <h3>Claude Code</h3>
+            <p>After release: register privately for this project, then check the connection.</p>
+            <div class="command-block">
+              <pre><code id="claude-mcp-command">claude mcp add --scope local --transport stdio runlens -- \
+  npx -y runlens@latest mcp --project "$PWD"
+claude mcp list</code></pre>
+              <button
+                type="button"
+                class="copy-button"
+                data-copy="claude-mcp-command"
+                aria-label="Copy Claude Code MCP registration commands"
+                hidden
+              >
+                Copy <span aria-hidden="true">↗</span>
+              </button>
+            </div>
+            <p class="quiet">
+              Local scope keeps machine-specific paths out of the shared project config. Reconnect
+              Claude Code and check <code>/mcp</code> before trying a question.
+            </p>
+          </article>
+          <article data-reveal>
+            <h3>Codex</h3>
+            <p>After release: save this project’s server in your Codex configuration.</p>
+            <div class="command-block">
+              <pre><code id="codex-mcp-command">codex mcp add runlens -- \
+  npx -y runlens@latest mcp --project "$PWD"
+codex mcp get runlens --json</code></pre>
+              <button
+                type="button"
+                class="copy-button"
+                data-copy="codex-mcp-command"
+                aria-label="Copy Codex MCP registration commands"
+                hidden
+              >
+                Copy <span aria-hidden="true">↗</span>
+              </button>
+            </div>
+            <p class="quiet">
+              Restart or reconnect Codex after registration. This entry keeps its configured project
+              even when you open Codex in another folder.
+            </p>
+          </article>
+        </div>
+        <p class="mcp-scope-note" data-reveal>
+          <code>"$PWD"</code> captures the folder you are in at registration. You don’t need to type
+          its path. Access stays fixed to that project; agents cannot approve another project
+          themselves. Use a different server name for another project, or configure an explicit
+          <code>--allow-project</code> grant and reconnect.
+        </p>
+        <div class="mcp-example" id="mcp-walkthrough" aria-labelledby="mcp-demo-title">
+          <div class="mcp-demo-intro" data-reveal>
+            <h3 id="mcp-demo-title">Follow an earlier fix.</h3>
+            <p>A question becomes a search. Follow the evidence back to a recorded run.</p>
+            <blockquote id="mcp-demo-question">
+              Search Runlens for the recurring search timeout. Show the earlier fix and its session
+              date, then check the approach against the current code.
+            </blockquote>
+            <button
+              type="button"
+              class="copy-button mcp-copy-question"
+              data-copy="mcp-demo-question"
+              data-copy-type="prompt"
+              aria-label="Copy the example question to ask your connected agent"
+              hidden
+            >
+              Copy question <span aria-hidden="true">↗</span>
+            </button>
+            <div class="mcp-demo-steps" role="group" aria-label="MCP walkthrough stages" hidden>
+              <button
+                type="button"
+                id="mcp-step-search"
+                data-mcp-step="search"
+                aria-pressed="true"
+                aria-controls="mcp-panel-search"
+              >
+                Search earlier work <span aria-hidden="true">↗</span>
+              </button>
+              <button
+                type="button"
+                id="mcp-step-read"
+                data-mcp-step="read"
+                aria-pressed="false"
+                aria-controls="mcp-panel-read"
+              >
+                Read the recorded session <span aria-hidden="true">↗</span>
+              </button>
+              <button
+                type="button"
+                id="mcp-step-verify"
+                data-mcp-step="verify"
+                aria-pressed="false"
+                aria-controls="mcp-panel-verify"
+              >
+                Verify against today’s code <span aria-hidden="true">↗</span>
+              </button>
+            </div>
+          </div>
+          <div class="mcp-demo-window" data-reveal>
+            <div class="mcp-demo-content" aria-live="polite" aria-atomic="true">
+              <article
+                id="mcp-panel-search"
+                data-mcp-panel="search"
+                aria-label="Search earlier work"
+              >
+                <p class="mcp-demo-statement">Find the relevant history.</p>
+                <pre><code>search_sessions({
+  "query": "recurring search timeout"
+})</code></pre>
+                <p>Two matching records in the configured demo project:</p>
+                <ul class="mcp-demo-matches">
+                  <li>
+                    <strong>Investigate the recurring search timeout</strong
+                    ><span>Codex · 22 October 2026</span>
+                  </li>
+                  <li>
+                    <strong>Fix the recurring search timeout</strong
+                    ><span>Claude Code · 1 October 2026</span>
+                  </li>
+                </ul>
+                <p>The agent follows the earlier Claude session to inspect the recorded fix.</p>
+              </article>
+              <article
+                id="mcp-panel-read"
+                data-mcp-panel="read"
+                aria-label="Read the recorded session"
+              >
+                <p class="mcp-demo-statement">Read what was recorded.</p>
+                <pre><code>session_summary({
+  "id": "earlier-claude",
+  "limit": 1
+})</code></pre>
+                <blockquote>
+                  Cancelled the superseded request. The focused search test passed.
+                </blockquote>
+                <dl class="mcp-demo-facts">
+                  <div>
+                    <dt>Recorded edit</dt>
+                    <dd><code>search.ts</code> · 2 lines added, 1 removed</dd>
+                  </div>
+                  <div>
+                    <dt>Failed call</dt>
+                    <dd>Bash · error status recorded</dd>
+                  </div>
+                </dl>
+                <p>
+                  This page shows one turn. The response returns <code>next_offset: 1</code> for the
+                  next page.
+                </p>
+              </article>
+              <article
+                id="mcp-panel-verify"
+                data-mcp-panel="verify"
+                aria-label="Verify against today’s code"
+              >
+                <p class="mcp-demo-statement">Use the history as a lead.</p>
+                <p>
+                  The record points to request cancellation. The next step is a fresh check in the
+                  current project:
+                </p>
+                <ul class="mcp-demo-checks">
+                  <li>
+                    Read the current search code and compare how superseded requests are handled.
+                  </li>
+                  <li>Check whether the earlier approach still fits the implementation.</li>
+                  <li>Run the relevant tests before calling the current issue fixed.</li>
+                </ul>
+                <p>
+                  This is suggested follow-up, not a recorded new investigation. Historical text is
+                  evidence to verify, never instructions to follow.
+                </p>
+              </article>
+            </div>
+            <button type="button" class="mcp-demo-next" hidden>
+              Next: read the session <span aria-hidden="true">→</span>
+            </button>
+            <p class="mcp-demo-note">
+              Synthetic example from the MCP tests. This website reads no local history and calls no
+              model.
+            </p>
+          </div>
+        </div>
+        <details class="mcp-preview" data-reveal>
+          <summary>Try the unpublished source preview</summary>
+          <p>
+            Developer setup for testing before the npm release. Already have the source? Start with
+            <code>npm install</code> inside your Runlens checkout. The
+            <code>RUNLENS_CLI</code> variable locates this unpublished build only.
+          </p>
+          <div class="command-block">
+            <pre><code id="mcp-build-command">git clone https://github.com/Priyadharshan0903/Runlens.git
+cd Runlens
+npm install
+npm run check
+export RUNLENS_CLI="$PWD/dist/cli.js"</code></pre>
+            <button
+              type="button"
+              class="copy-button"
+              data-copy="mcp-build-command"
+              aria-label="Copy MCP preview build commands"
+              hidden
+            >
+              Copy <span aria-hidden="true">↗</span>
+            </button>
+          </div>
+          <p>
+            In this same terminal, change into the project whose history you want. Choose the
+            matching registration command below. Keep your built Runlens checkout at its saved
+            location, rebuild after source changes, and reconnect your client.
+          </p>
+          <div class="command-block">
+            <pre><code id="claude-mcp-preview-command"># Claude Code source preview
+claude mcp add --scope local --transport stdio runlens -- \
+  node "$RUNLENS_CLI" mcp --project "$PWD"
+claude mcp list</code></pre>
+            <button
+              type="button"
+              class="copy-button"
+              data-copy="claude-mcp-preview-command"
+              aria-label="Copy Claude Code MCP source preview commands"
+              hidden
+            >
+              Copy <span aria-hidden="true">↗</span>
+            </button>
+          </div>
+          <div class="command-block">
+            <pre><code id="codex-mcp-preview-command"># Codex source preview
+codex mcp add runlens -- \
+  node "$RUNLENS_CLI" mcp --project "$PWD"
+codex mcp get runlens --json</code></pre>
+            <button
+              type="button"
+              class="copy-button"
+              data-copy="codex-mcp-preview-command"
+              aria-label="Copy Codex MCP source preview commands"
+              hidden
+            >
+              Copy <span aria-hidden="true">↗</span>
+            </button>
+          </div>
+          <p>
+            Choose one setup per client. If <code>runlens</code> is already registered, review and
+            update its existing configuration or use a distinct server name.
+          </p>
+        </details>
+        <p class="copy-status" data-copy-status role="status" aria-live="polite"></p>
+        <a
+          class="text-link"
+          href="https://github.com/Priyadharshan0903/Runlens/blob/master/docs/mcp.md"
+          target="_blank"
+          rel="noopener noreferrer"
+          >Full MCP setup, permissions, and limits <span aria-hidden="true">↗</span></a
         >
       </section>
 
@@ -561,8 +833,9 @@ runlens</code></pre>
           <details data-reveal>
             <summary>Can I connect an agent through MCP today?</summary>
             <p>
-              Not yet. The MCP roadmap starts with a safety contract, then bounded search and
-              summary tools, then tested client setup. There is no announced release date.
+              Yes, using the source preview. <a href="#mcp">MCP setup</a> includes copyable Claude
+              Code and Codex commands. MCP is not in the npm release yet. The client starts a
+              read-only server; selected history can reach its model provider.
             </p>
           </details>
         </div>

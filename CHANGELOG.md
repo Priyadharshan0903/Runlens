@@ -1,5 +1,55 @@
 # Changelog
 
+### 2026-10-22 — Interactive MCP walkthrough
+
+- Replace the static MCP question with a selectable search, recorded-summary, and verification
+  walkthrough. Add next/replay navigation and a copyable question with agent-specific copy feedback.
+- Use matches and recorded facts verified against the synthetic MCP test history. Label the demo
+  and distinguish suggested current-code checks from recorded outcomes. Read no history from the website.
+- Preserve the monochrome style and existing trace animations. Keep all stages readable without
+  JavaScript, use native keyboard controls, and respect reduced motion for stage transitions.
+- Rename the navigation's “What’s next” link to “MCP” and the hero preview's matching label to
+  “For your agents”; keep a direct MCP setup link for registration commands.
+
+### 2026-10-22 — MCP connection guidance and website setup
+
+- Teach connected agents when to search prior work, how to inspect a matching session, and how to
+  handle empty results and historical instructions. Identify the configured default project during
+  initialization; explain fixed startup scopes, explicit grants, and model-provider exposure.
+- Add a dedicated landing-page MCP setup section with copyable Claude Code/Codex source-preview
+  and future npm commands, optional developer build instructions, a practical question, and local clipboard feedback. Match the
+  existing monochrome design and preserve the hero/footer trace animations.
+- Document registration from the user's project with `"$PWD"`, private local Claude configuration,
+  and the distinction between available source setup and npm commands for after release. Add the
+  same setup to README and the MCP guide. No automatic approval or discovery behavior is claimed.
+- Extend the real-client protocol check to verify initialization and tool guidance.
+- Validation: all 126 server-free tests, formatting, types, and both builds passed. The user ran
+  the browser inspector; final desktop/tablet/mobile screenshots were reviewed with zero failures
+  and the two existing type-scale/video warnings. All seven copy targets and local anchors resolve;
+  displayed commands pass shell syntax checks. No release, deployment, or personal registration.
+
+### 2026-10-22 — Read-only MCP source preview
+
+- Add `runlens mcp` stdio mode with `search_sessions` and `session_summary` over the shared Claude
+  Code/Codex adapters. Keep the viewer as the default mode, without starting a browser or HTTP
+  server in MCP mode. No MCP release to npm is claimed.
+- Default to the startup directory project, require explicit startup grants plus tool selection
+  for other projects, and scope the discovered file allowlist before full transcript scans.
+- Return masked prompts/assistant excerpts and recorded change/failure facts with untrusted-data
+  labels, dates, agent and session provenance. Exclude raw tool inputs/outputs, fetched payloads,
+  thinking and compaction bodies; document the limits of redaction and injection protections.
+- Bound JSON envelopes to 16 KiB, page results/turns, limit scans, propagate cancellation through
+  discovery and reader iterators, and prevent overlapping scans. Keep transcripts unchanged.
+- Bundle the official MCP SDK/schema validator and their notices; retain zero installation-time
+  runtime dependencies. Add synthetic contract and real SDK-client protocol tests, plus source
+  setup instructions and optional agent guidance.
+- Reuse the viewer's inherited-fork filtering for MCP child evidence, and keep startup grants
+  from expanding to inferred ancestor projects. Initialize the SDK only in MCP mode.
+- Validation: all 126 server-free tests (including 19 MCP checks), types, formatting, both builds,
+  and installed-package/MCP verification passed. Claude Code connected in a synthetic-only health
+  check; Codex add/get configuration passed in a temporary config. Authenticated model use and
+  Cursor integration were not exercised. No public release or personal client registration was made.
+
 ### 2026-10-22 — Manual GitHub Pages deployment
 
 - Add a separate `Deploy website to GitHub Pages` workflow triggered only by manual dispatch.

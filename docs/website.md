@@ -52,9 +52,10 @@ This follows GitHub's [custom Pages workflow guidance](https://docs.github.com/e
 
 ## Files and interactions
 
-- `website/index.html`: readable page content, install commands, external links, FAQ, and planned MCP section.
+- `website/index.html`: readable page content, viewer installation, MCP preview setup, external links, and FAQ.
 - `website/styles.css`: monochrome tokens, responsive layouts, folder-shaped surfaces, and control transitions.
 - `website/main.ts`: screenshot previews, walkthrough selection, clipboard feedback, scroll entrances, and gentle hero movement.
+- `website/mcp-walkthrough.ts`: synthetic MCP search/summary/verification walkthrough, stage selection, and reduced-motion transitions.
 - `website/screenshot-preview.ts`: native image dialog, zoom, Escape dismissal, and full-image link fallback.
 - `website/footer-traces.ts`: decorative run-trace packets, paused outside the footer or when the document is hidden.
 - `website/hero-traces.ts`: three quieter traces routed around the hero text toward the product preview, updated on resize.
@@ -100,16 +101,35 @@ Product screenshots are captured directly at 3× pixel density. The privacy sect
 complete library image, including its sidebar and controls. Every screenshot opens in a native
 dialog with zoom and keyboard dismissal; without JavaScript, its link opens the full PNG instead.
 
-MCP copy was checked against Foglio's Runlens tasks FOG-79 through FOG-83 on 22 October 2026.
-It distinguishes the planned safety contract, bounded search/summary tools, and client guidance
-from later candidates. MCP is not implemented or advertised as currently available. Do not add a
-launch date or a runnable MCP command before the actual contract ships. In particular, potential
-Cursor MCP compatibility does not mean Runlens reads Cursor history.
+MCP copy follows the source preview in `src/mcp/` and [MCP setup](mcp.md), with later candidates
+originally tracked in Foglio FOG-79 through FOG-83. The dedicated `#mcp` section includes a preview
+build, copyable Claude Code/Codex commands, a question to try, fixed project-scope behavior, and
+provider exposure. It uses `"$PWD"` at registration so visitors need not type their project path.
+Claude uses local scope for private machine-specific configuration. Copy feedback appears in the
+same section, with manual selection if clipboard access fails. Commands remain readable without JS.
+
+MCP is not published to npm. The main setup explains the intended one-command npm registration,
+clearly marked as unavailable until a release containing MCP ships. Developer build/CLI-path setup
+is in an optional source-preview disclosure and is the only path available today. The page
+distinguishes available search/recorded-summary tools
+from future change/failure/active-session ideas. There is no announced date. Potential Cursor MCP
+compatibility does not mean Runlens reads Cursor history.
+
+The interactive MCP walkthrough at `#mcp-walkthrough` replaces the static example question.
+Navigation calls the overview **MCP**, with a separate **MCP setup** link to the commands;
+the hero preview links to **For your agents** rather than presenting the source preview as future work.
+Visitors can select Search, Read, or Verify, follow the next/replay button, and copy the question
+for their connected agent. The displayed matches, dates, recorded answer, edit counts, failure
+metadata, and continuation offset were checked by running `HistoryService` against the synthetic
+`tests/mcp-fixtures.ts` history. It presents selected fields rather than a complete protocol response.
+The verification panel suggests a new investigation; it does not claim an agent performed it.
+The page makes no MCP, model, or transcript requests. Without JavaScript all three stages remain
+readable; with reduced motion, switching stages does not animate. The hero/footer traces are unchanged.
 
 ## Verification
 
 Run `npm run check` for formatting, shared TypeScript checking (including `website/`), the existing
 core/feature tests, and the viewer build. Run `npm run site:build` separately to check the website's
 bundling and assets. Review the preview on laptop and desktop, then check narrower widths, keyboard
-focus, light/dark screenshot selection, all walkthrough choices, both copy buttons, FAQ disclosure,
+focus, light/dark screenshot selection, all walkthrough choices, viewer/MCP copy buttons, disclosures,
 and reduced motion. Browser verification is separate from the server-free project check.

@@ -12,6 +12,9 @@ const bundledPackages = [
   "marked",
   "@fontsource/geist-sans",
   "@fontsource/geist-mono",
+  "@modelcontextprotocol/server",
+  "@modelcontextprotocol/core",
+  "zod",
 ];
 const notices = await Promise.all(
   bundledPackages.map(async (name) => {
