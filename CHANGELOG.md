@@ -1,5 +1,16 @@
 # Changelog
 
+### 2026-10-22 — Quiet hero trace animation
+
+- Introduce the footer's trace motif in the hero with three paths and slower, fainter packets
+  flowing toward the product preview. Route around the headline, supporting copy, and install action.
+- Adapt paths to the available space on resize and use outer routes on narrow layouts.
+- Share packet playback with the footer, preserving its original timing and paths. Pause each
+  stage when offscreen or the document is hidden; reduced motion keeps static paths only.
+- Validation: all 107 tests and both builds passed. Browser checks covered seven widths, trace/text
+  clearance, packet motion and offscreen pause, reduced-motion cancellation and restart, footer
+  playback, and the keyboard install action. Final layout inspection reported no failures.
+
 ### 2026-10-22 — Practical website examples and aligned footer controls
 
 - Replace the six-view reference table with expandable scenarios showing when Runlens helps:

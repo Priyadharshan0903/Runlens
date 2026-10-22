@@ -2,6 +2,7 @@ import "./styles.css";
 import { initializeFooterTraces } from "./footer-traces";
 import { initializeFooterLayout } from "./footer-layout";
 import { initializeScreenshotPreview } from "./screenshot-preview";
+import { initializeHeroTraces } from "./hero-traces";
 
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
@@ -162,5 +163,6 @@ reducedMotion.addEventListener("change", () => {
 });
 
 initializeScreenshotPreview();
+initializeHeroTraces(reducedMotion);
 initializeFooterLayout();
 initializeFooterTraces(reducedMotion);

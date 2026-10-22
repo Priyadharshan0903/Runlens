@@ -228,7 +228,31 @@ nav a:focus-visible::after,
   transform: translate(3px, -3px);
 }
 .hero {
+  position: relative;
+  isolation: isolate;
   padding-top: 70px;
+}
+.hero-traces {
+  position: absolute;
+  inset: 0 0 auto;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: -1;
+}
+.hero-traces svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.hero-paths {
+  stroke: var(--raised);
+  stroke-width: 1.5;
+}
+.hero-packets {
+  fill: var(--muted);
+}
+.hero-packets rect {
+  opacity: 0;
 }
 .hero-intro {
   display: grid;
@@ -1307,7 +1331,8 @@ body:has(.screenshot-preview[open]) {
   [data-parallax] {
     transform: none !important;
   }
-  .footer-packets {
+  .footer-packets,
+  .hero-packets {
     display: none;
   }
 }

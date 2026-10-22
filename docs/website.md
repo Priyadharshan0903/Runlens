@@ -34,6 +34,8 @@ carry a build version so updated previews do not depend on reusing cached brandi
 - `website/main.ts`: screenshot previews, walkthrough selection, clipboard feedback, scroll entrances, and gentle hero movement.
 - `website/screenshot-preview.ts`: native image dialog, zoom, Escape dismissal, and full-image link fallback.
 - `website/footer-traces.ts`: decorative run-trace packets, paused outside the footer or when the document is hidden.
+- `website/hero-traces.ts`: three quieter traces routed around the hero text toward the product preview, updated on resize.
+- `website/trace-motion.ts`: shared packet playback, path sampling, visibility, and reduced-motion handling.
 - `website/footer-layout.ts`: aligns the desktop footer arrow and navigation with the existing SVG trace coordinates.
 - `scripts/build-site.mjs`: static asset copying, build, and loopback preview.
 
@@ -52,6 +54,11 @@ changing that preference also cancels running Web Animations. Reading never wait
 The footer adds branching monochrome traces behind the wordmark. Only small packets animate;
 reduced motion leaves the static paths and removes the packets. All background artwork is
 decorative and hidden from assistive technology.
+The hero introduces the same motif with three paths and slower, fainter packets. Routes follow the
+open space above and between the columns, then turn toward the preview; narrow layouts keep them
+along the perimeter. Resize observation updates path coordinates and packet keyframes without a
+continuous JavaScript animation loop. Hero and footer playback pause independently when offscreen.
+The hero artwork is optional: without JavaScript the content and controls retain their layout.
 The original branching paths run across a full-width, full-height `.footer-signature` stage with
 the wordmark centered over them. Keep this stage taller than the wordmark so the animation retains
 its original spread. On desktop, the closing copy moves down 60px, the arrow meets the upper-right
