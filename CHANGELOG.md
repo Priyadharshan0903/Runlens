@@ -1,5 +1,27 @@
 # Changelog
 
+### 2026-10-22 — Read-only MCP source preview
+
+- Add `runlens mcp` stdio mode with `search_sessions` and `session_summary` over the shared Claude
+  Code/Codex adapters. Keep the viewer as the default mode, without starting a browser or HTTP
+  server in MCP mode. No MCP release to npm is claimed.
+- Default to the startup directory project, require explicit startup grants plus tool selection
+  for other projects, and scope the discovered file allowlist before full transcript scans.
+- Return masked prompts/assistant excerpts and recorded change/failure facts with untrusted-data
+  labels, dates, agent and session provenance. Exclude raw tool inputs/outputs, fetched payloads,
+  thinking and compaction bodies; document the limits of redaction and injection protections.
+- Bound JSON envelopes to 16 KiB, page results/turns, limit scans, propagate cancellation through
+  discovery and reader iterators, and prevent overlapping scans. Keep transcripts unchanged.
+- Bundle the official MCP SDK/schema validator and their notices; retain zero installation-time
+  runtime dependencies. Add synthetic contract and real SDK-client protocol tests, plus source
+  setup instructions and optional agent guidance.
+- Reuse the viewer's inherited-fork filtering for MCP child evidence, and keep startup grants
+  from expanding to inferred ancestor projects. Initialize the SDK only in MCP mode.
+- Validation: all 126 server-free tests (including 19 MCP checks), types, formatting, both builds,
+  and installed-package/MCP verification passed. Claude Code connected in a synthetic-only health
+  check; Codex add/get configuration passed in a temporary config. Authenticated model use and
+  Cursor integration were not exercised. No public release or personal client registration was made.
+
 ### 2026-10-22 — Manual GitHub Pages deployment
 
 - Add a separate `Deploy website to GitHub Pages` workflow triggered only by manual dispatch.

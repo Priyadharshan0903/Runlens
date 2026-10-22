@@ -28,3 +28,26 @@ export type Event =
       /** Set when the call started a subagent. */
       agentId?: string;
     };
+
+/** Drop an exact replay prefix, then exclude inherited calls even in a truncated fork. */
+export function ownEvents(events: Event[], parent: Event[]): Event[] {
+  let prefix = 0;
+  while (
+    prefix < events.length &&
+    prefix < parent.length &&
+    JSON.stringify(events[prefix]) === JSON.stringify(parent[prefix])
+  )
+    prefix++;
+  const calls = new Set(
+    parent.filter((event) => event.type === "tool_use").map((event) => event.id),
+  );
+  const own = events
+    .slice(prefix)
+    .filter(
+      (event) =>
+        !(event.type === "tool_use" && calls.has(event.id)) &&
+        !(event.type === "tool_result" && calls.has(event.toolUseId)),
+    );
+  if (own[0]?.type === "interjection") own[0] = { ...own[0], type: "prompt" };
+  return own;
+}

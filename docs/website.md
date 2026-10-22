@@ -102,8 +102,9 @@ dialog with zoom and keyboard dismissal; without JavaScript, its link opens the 
 
 MCP copy was checked against Foglio's Runlens tasks FOG-79 through FOG-83 on 22 October 2026.
 It distinguishes the planned safety contract, bounded search/summary tools, and client guidance
-from later candidates. MCP is not implemented or advertised as currently available. Do not add a
-launch date or a runnable MCP command before the actual contract ships. In particular, potential
+from later candidates. The v1 source preview now lives in `src/mcp/` and [MCP setup](mcp.md), but
+is not published to npm. Keep the public landing page's planned wording until the release ships.
+Do not add a launch date or advertise the preview as an npm feature. In particular, potential
 Cursor MCP compatibility does not mean Runlens reads Cursor history.
 
 ## Verification

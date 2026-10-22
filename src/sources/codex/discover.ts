@@ -14,6 +14,7 @@ interface IndexedSession {
 
 const cache = new Map<string, { stamp: string; value?: IndexedSession }>();
 let byFile = new Map<string, IndexedSession>();
+let byId = new Map<string, IndexedSession>();
 let byParent = new Map<string, IndexedSession[]>();
 
 export function defaultRoots(env: NodeJS.ProcessEnv = process.env, home = homedir()): string[] {
@@ -34,11 +35,15 @@ export function defaultRoots(env: NodeJS.ProcessEnv = process.env, home = homedi
   return [...roots.values()];
 }
 
-export async function discover(roots: string[]): Promise<DiscoveredSession[]> {
+export async function discover(
+  roots: string[],
+  signal?: AbortSignal,
+): Promise<DiscoveredSession[]> {
+  signal?.throwIfAborted();
   const next = new Map<string, IndexedSession>();
   for (const root of roots) {
-    for await (const file of rolloutFiles(root)) {
-      const session = await summarize(file);
+    for await (const file of rolloutFiles(root, signal)) {
+      const session = await summarize(file, signal);
       if (session && !next.has(session.summary.id)) next.set(session.summary.id, session);
     }
   }
@@ -50,6 +55,7 @@ export async function discover(roots: string[]): Promise<DiscoveredSession[]> {
     children.set(session.info.parentId, siblings);
   }
   byFile = new Map([...next.values()].map((session) => [session.file, session]));
+  byId = next;
   byParent = children;
   // Children belong to their recorded parent; an orphan remains accessible as its own session.
   return [...next.values()]
@@ -80,17 +86,25 @@ export function childSessions(file: string): IndexedSession[] {
   return found;
 }
 
-async function* rolloutFiles(root: string): AsyncIterable<string> {
+export function inheritedFile(file: string): string | undefined {
+  const parentId = byFile.get(file)?.info.parentId;
+  return parentId ? byId.get(parentId)?.file : undefined;
+}
+
+async function* rolloutFiles(root: string, signal?: AbortSignal): AsyncIterable<string> {
+  signal?.throwIfAborted();
   const entries = await readdir(root, { withFileTypes: true }).catch(() => []);
   for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
     const file = join(root, entry.name);
-    if (entry.isDirectory()) yield* rolloutFiles(file);
+    signal?.throwIfAborted();
+    if (entry.isDirectory()) yield* rolloutFiles(file, signal);
     else if (entry.isFile() && entry.name.startsWith("rollout-") && entry.name.endsWith(".jsonl"))
       yield file;
   }
 }
 
-async function summarize(file: string): Promise<IndexedSession | undefined> {
+async function summarize(file: string, signal?: AbortSignal): Promise<IndexedSession | undefined> {
+  signal?.throwIfAborted();
   const info = await stat(file).catch(() => undefined);
   if (!info?.isFile()) return;
   const stamp = `${info.size}:${info.mtimeMs}`;
@@ -100,7 +114,7 @@ async function summarize(file: string): Promise<IndexedSession | undefined> {
   const decoder = new CodexDecoder();
   let prompt: string | undefined;
   try {
-    for await (const record of streamRecords(file)) {
+    for await (const record of streamRecords(file, signal)) {
       for (const event of decoder.decode(record)) {
         if (event.type === "prompt") prompt = event.text;
       }

@@ -47,7 +47,11 @@ export function defaultRoots(env: NodeJS.ProcessEnv = process.env, home = homedi
 
 const cache = new Map<string, { key: string; summary: SessionSummary | null }>();
 
-export async function discover(roots: string[]): Promise<DiscoveredSession[]> {
+export async function discover(
+  roots: string[],
+  signal?: AbortSignal,
+): Promise<DiscoveredSession[]> {
+  signal?.throwIfAborted();
   const files = new Map<string, string>();
   const sessions: DiscoveredSession[] = [];
 
@@ -57,7 +61,8 @@ export async function discover(roots: string[]): Promise<DiscoveredSession[]> {
       for (const name of await safeReaddir(projectDir)) {
         if (!name.endsWith(".jsonl")) continue;
         const file = join(projectDir, name);
-        const summary = await summarize(file);
+        signal?.throwIfAborted();
+        const summary = await summarize(file, signal);
         if (!summary || files.has(summary.id)) continue;
         files.set(summary.id, file);
         sessions.push({ file, summary });
@@ -68,7 +73,8 @@ export async function discover(roots: string[]): Promise<DiscoveredSession[]> {
   return sessions;
 }
 
-async function summarize(file: string): Promise<SessionSummary | null> {
+async function summarize(file: string, signal?: AbortSignal): Promise<SessionSummary | null> {
+  signal?.throwIfAborted();
   const info = await stat(file).catch(() => null);
   if (!info?.isFile()) return null;
   const agents = await safeReaddir(subagentDir(file));
@@ -82,34 +88,42 @@ async function summarize(file: string): Promise<SessionSummary | null> {
   let cwd: string | undefined;
   let startedAt: string | undefined;
 
-  const lines = createInterface({ input: createReadStream(file, "utf8"), crlfDelay: Infinity });
-  for await (const line of lines) {
-    // Cheap text checks first; only parse the few lines that matter.
-    const isTitle = /"type"\s*:\s*"(?:ai-title|custom-title|summary)"/.test(line);
-    const wantPrompt = !firstPrompt && /"type"\s*:\s*"user"/.test(line);
-    const wantStart = !startedAt && line.includes('"timestamp"');
-    if (!isTitle && !wantPrompt && !wantStart) continue;
+  const input = createReadStream(file, { encoding: "utf8", signal });
+  const lines = createInterface({ input, crlfDelay: Infinity });
+  try {
+    for await (const line of lines) {
+      signal?.throwIfAborted();
+      // Cheap text checks first; only parse the few lines that matter.
+      const isTitle = /"type"\s*:\s*"(?:ai-title|custom-title|summary)"/.test(line);
+      const wantPrompt = !firstPrompt && /"type"\s*:\s*"user"/.test(line);
+      const wantStart = !startedAt && line.includes('"timestamp"');
+      if (!isTitle && !wantPrompt && !wantStart) continue;
 
-    let record: Record<string, unknown>;
-    try {
-      record = JSON.parse(line);
-    } catch {
-      continue;
-    }
-    if (record.type === "ai-title" && typeof record.aiTitle === "string") title = record.aiTitle;
-    if (record.type === "summary" && !title && typeof record.summary === "string")
-      title = record.summary;
-    if (record.type === "custom-title" && typeof record.customTitle === "string")
-      customTitle = record.customTitle;
-    if (!startedAt && typeof record.timestamp === "string") startedAt = record.timestamp;
-    if (wantPrompt) {
-      const prompt = parseRecords([record]).events.find((e) => e.type === "prompt");
-      if (prompt?.type === "prompt") {
-        firstPrompt = prompt.text.split("\n")[0].slice(0, 200);
-        if (typeof record.cwd === "string") cwd = record.cwd;
+      let record: Record<string, unknown>;
+      try {
+        record = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (record.type === "ai-title" && typeof record.aiTitle === "string") title = record.aiTitle;
+      if (record.type === "summary" && !title && typeof record.summary === "string")
+        title = record.summary;
+      if (record.type === "custom-title" && typeof record.customTitle === "string")
+        customTitle = record.customTitle;
+      if (!startedAt && typeof record.timestamp === "string") startedAt = record.timestamp;
+      if (wantPrompt) {
+        const prompt = parseRecords([record]).events.find((e) => e.type === "prompt");
+        if (prompt?.type === "prompt") {
+          firstPrompt = prompt.text.split("\n")[0].slice(0, 200);
+          if (typeof record.cwd === "string") cwd = record.cwd;
+        }
       }
     }
+  } finally {
+    lines.close();
+    input.destroy();
   }
+  signal?.throwIfAborted();
 
   // Sessions where nothing was ever asked (e.g. opened and closed) aren't worth listing.
   const summary: SessionSummary | null = firstPrompt

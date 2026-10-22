@@ -1,6 +1,8 @@
 // Check the archive users would install, away from the checkout and its node_modules.
 // --help and --version exit before discovering sessions or starting a server.
 import assert from "node:assert/strict";
+import { Client } from "@modelcontextprotocol/client";
+import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
@@ -67,6 +69,43 @@ try {
     else assert(output.includes("Usage"), "The installed command must show its help.");
   }
 
+  // Connect to the installed archive, with empty explicit roots instead of personal history.
+  const history = join(temporary, "empty-history");
+  const project = join(temporary, "project");
+  await mkdir(history);
+  await mkdir(project);
+  const client = new Client({ name: "runlens-package-check", version: "1" });
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [
+      join(installed, "dist", "cli.js"),
+      "mcp",
+      "--project",
+      project,
+      "--dir",
+      history,
+      "--codex-dir",
+      history,
+    ],
+    cwd: installation,
+    stderr: "pipe",
+  });
+  try {
+    await client.connect(transport);
+    assert.deepEqual(
+      (await client.listTools()).tools.map((tool) => tool.name),
+      ["search_sessions", "session_summary"],
+    );
+    const result = await client.callTool({
+      name: "search_sessions",
+      arguments: { query: "synthetic" },
+    });
+    assert.equal(result.isError, undefined);
+    assert.deepEqual(result.structuredContent?.results, []);
+  } finally {
+    await client.close();
+  }
+
   const ui = join(installed, "dist", "ui");
   for (const asset of ["index.html", "app.js", "styles.css", "icon.svg"]) {
     assert((await readFile(join(ui, asset))).length > 0, `Missing UI asset: ${asset}`);
@@ -85,7 +124,7 @@ try {
     .digest("hex");
   await writeFile(join(destination, "SHA256SUMS"), `${checksum}  ${packed.filename}\n`);
   console.log(
-    `Verified ${expected.name}@${expected.version}: installed CLI, UI, ${fonts.size} local fonts, and license notices.`,
+    `Verified ${expected.name}@${expected.version}: installed CLI/MCP, UI, ${fonts.size} local fonts, and license notices.`,
   );
   if (process.argv[2]) console.log(`Release files: ${destination}`);
 } finally {

@@ -1,9 +1,9 @@
-import type { Event } from "../../core/events.js";
+import { ownEvents, type Event } from "../../core/events.js";
 import { buildTurns } from "../../core/tree.js";
 import type { AgentRun, Session } from "../../core/types.js";
 import type { SearchFile, SourceReader } from "../types.js";
 import { streamRecords } from "../jsonl.js";
-import { childSessions, defaultRoots, discover } from "./discover.js";
+import { childSessions, defaultRoots, discover, inheritedFile } from "./discover.js";
 import { CodexDecoder, readTranscript } from "./parse.js";
 
 export const codexReader: SourceReader = {
@@ -80,32 +80,10 @@ async function load(file: string): Promise<Omit<Session, "source">> {
   };
 }
 
-/** Drop an exact replay prefix, then exclude inherited calls even in a truncated fork. */
-function ownEvents(events: Event[], parent: Event[]): Event[] {
-  let prefix = 0;
-  while (
-    prefix < events.length &&
-    prefix < parent.length &&
-    JSON.stringify(events[prefix]) === JSON.stringify(parent[prefix])
-  )
-    prefix++;
-  const calls = new Set(
-    parent.filter((event) => event.type === "tool_use").map((event) => event.id),
-  );
-  const own = events
-    .slice(prefix)
-    .filter(
-      (event) =>
-        !(event.type === "tool_use" && calls.has(event.id)) &&
-        !(event.type === "tool_result" && calls.has(event.toolUseId)),
-    );
-  if (own[0]?.type === "interjection") own[0] = { ...own[0], type: "prompt" };
-  return own;
-}
-
 async function* searchFiles(file: string): AsyncIterable<SearchFile> {
   yield { file, source: "session" };
-  for (const child of childSessions(file)) yield { file: child.file, source: "subagent" };
+  for (const child of childSessions(file))
+    yield { file: child.file, source: "subagent", inheritedFile: inheritedFile(child.file) };
 }
 
 async function* readEvents(file: string, signal?: AbortSignal): AsyncIterable<Event> {

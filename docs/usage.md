@@ -1,5 +1,8 @@
 # Using Runlens
 
+For the unreleased read-only MCP server, see [MCP setup and privacy](mcp.md). The viewer remains
+the default CLI mode; MCP requires the explicit `mcp` subcommand.
+
 ## Run from source
 
 ```sh

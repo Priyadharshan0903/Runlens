@@ -70,6 +70,15 @@ Questions and suggestions are welcome in issues; code changes are welcome throug
 - File changes describe recorded operations, not a final Git diff. A successful tool call does not prove the overall task succeeded.
 - Notes and preferences stay in this browser. Transcript files are never changed. [Privacy and measurement details →](docs/usage.md)
 
+## Let agents consult earlier work
+
+The source preview includes a read-only MCP server with `search_sessions` and `session_summary`
+for Claude Code and Codex history. It defaults to one directory project and returns bounded,
+masked historical excerpts and recorded facts. MCP responses go to your connected agent client
+and may reach its model provider. This is not published to npm yet.
+
+[Build it and configure Claude Code or Codex →](docs/mcp.md)
+
 ## Contribute
 
 ```sh
