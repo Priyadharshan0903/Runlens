@@ -72,7 +72,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 16px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted);
   margin-top: 14px;
 }
@@ -87,7 +87,7 @@
   gap: 8px;
   margin-top: 14px;
   min-height: 30px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted);
 }
 .session-finding > span {
@@ -198,7 +198,7 @@
   align-items: center;
   gap: 5px;
   padding: 0 0 12px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--muted);
   border-bottom: 2px solid transparent;
@@ -236,7 +236,7 @@
   border: 0;
   background: transparent;
   outline: none;
-  font-size: 12px;
+  font-size: 13px;
 }
 .session-search input::placeholder {
   color: var(--faint);
@@ -342,7 +342,7 @@
   margin-bottom: 18px;
 }
 .inspector-title h2 {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
 }
 .inspector-close,
@@ -556,7 +556,7 @@
   list-style: none;
   cursor: pointer;
 }
-.file-change summary::-webkit-details-marker {
+.file-change > summary::-webkit-details-marker {
   display: none;
 }
 .file-change summary > code {
@@ -593,6 +593,55 @@
 }
 .file-change .call-details {
   margin-bottom: 16px;
+}
+.change-call + .change-call {
+  border-top: 1px solid var(--line);
+  margin-top: 20px;
+  padding-top: 16px;
+}
+.change-preview {
+  margin: 8px 0;
+  padding: 12px 0;
+  max-height: 480px;
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  tab-size: 2;
+}
+.change-preview code {
+  display: block;
+  min-width: max-content;
+  font-size: 12px;
+  line-height: 1.7;
+  white-space: pre;
+}
+.change-preview code > span {
+  display: block;
+  padding: 0 12px;
+}
+.change-preview .added {
+  background: color-mix(in srgb, var(--added) 8%, transparent);
+}
+.change-preview .removed {
+  background: var(--fail-soft);
+}
+.change-preview .context {
+  color: var(--ink-2);
+}
+.change-preview-note {
+  margin: 10px 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.change-record > summary {
+  display: list-item;
+  padding: 8px 0;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
 }
 .statistics-view > section + section {
   margin-top: 28px;

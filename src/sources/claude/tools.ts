@@ -62,17 +62,38 @@ export function describeTool(
     if (name === "Edit") {
       effect.added = lines(input.new_string);
       effect.removed = lines(input.old_string);
+      if (action.replacement) {
+        effect.preview = {
+          kind: "diff",
+          text: replacementPatch(action.replacement.before, action.replacement.after),
+        };
+      }
     } else if (name === "Write") {
       effect.added = lines(input.content);
+      if (typeof input.content === "string") {
+        effect.preview = { kind: "content", text: input.content };
+      }
     } else if (name === "MultiEdit" && Array.isArray(input.edits)) {
+      const patches: string[] = [];
       for (const edit of input.edits) {
         effect.added += lines(edit?.new_string);
         effect.removed += lines(edit?.old_string);
+        if (typeof edit?.old_string === "string" && typeof edit?.new_string === "string") {
+          patches.push(replacementPatch(edit.old_string, edit.new_string));
+        }
       }
+      if (patches.length) effect.preview = { kind: "diff", text: patches.join("\n@@\n") };
     }
     action.files = [effect];
   }
   return { summary, action };
+}
+
+function replacementPatch(before: string, after: string): string {
+  return [
+    ...(before ? before.split("\n").map((line) => `-${line}`) : []),
+    ...(after ? after.split("\n").map((line) => `+${line}`) : []),
+  ].join("\n");
 }
 
 function lines(value: unknown): number {

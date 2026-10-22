@@ -24,12 +24,22 @@ Use repeated `--codex-dir <path>` flags to replace Codex's default history folde
   script directly, while direct invocations retain quoted argument boundaries. The original array
   stays in the normalized call input for inspection and exports. Missing command text falls back
   to the available input instead of an empty Command field.
+- Simple `cat`, `head`, `tail`, and `wc` commands are labelled Read; `rg`/`grep` are Search,
+  and `ls`/`pwd` are List. A simple `sed` print/range expression also counts as Read.
+  Compound scripts, pipelines, redirects, expansions, executable search preprocessors, and
+  unfamiliar commands stay Run. These are conventional display labels, not a shell evaluator
+  or a guarantee about aliases, environment configuration, or side effects. Classification never
+  executes commands or invents file effects. Folded shell lookups show an inspection-call count
+  rather than claiming a number of files read.
 - Prefer concrete completed commands, file changes, and MCP calls recorded during one enclosing
   `exec` call. Show its individual operations instead of counting the wrapper again. If no concrete
   operations are recorded, retain the original script and output. Detached operations or overlapping
   wrappers cannot always be attributed; retain them as recorded activity rather than guessing.
 - Normalize explicit patch blocks and recorded file changes into file effects. Shell text alone
   does not prove a read or write. Line counts describe recorded changes, not a net Git diff.
+  Each effect carries its own recorded patch/content preview when available. Multi-file patch
+  previews stay separate; an added file shows source lines rather than escaped JSON. Updates
+  without a recorded diff show content without inventing a previous version.
 - Display compaction/abort markers without replaying `replacement_history` as new conversation.
   Unknown record types are skipped; unknown tool names and inputs remain inspectable.
 

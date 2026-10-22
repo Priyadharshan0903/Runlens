@@ -344,6 +344,14 @@ describe("Claude tool normalization", () => {
           { old_string: "d", new_string: "" },
         ],
       }).action.files,
-    ).toEqual([{ path: "a.ts", operation: "change", added: 2, removed: 2 }]);
+    ).toEqual([
+      {
+        path: "a.ts",
+        operation: "change",
+        added: 2,
+        removed: 2,
+        preview: { kind: "diff", text: "-a\n+b\n+c\n@@\n-d" },
+      },
+    ]);
   });
 });

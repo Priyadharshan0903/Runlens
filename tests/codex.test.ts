@@ -10,7 +10,7 @@ import { defaultRoots } from "../src/sources/codex/discover.js";
 import { CodexDecoder } from "../src/sources/codex/parse.js";
 import { codexReader } from "../src/sources/codex/reader.js";
 import { claudeReader } from "../src/sources/claude/reader.js";
-import { describeTool } from "../src/sources/codex/tools.js";
+import { completedTool, describeTool } from "../src/sources/codex/tools.js";
 import {
   filterBySource,
   groupSessionsByProject,
@@ -322,6 +322,158 @@ describe("Codex history", () => {
     { name: "malformed argument arrays", input: { cmd: ["zsh", 12] }, expected: undefined },
   ])("displays $name without losing argument boundaries", ({ input, expected }) => {
     expect(describeTool("exec_command", input).action.command).toBe(expected);
+  });
+
+  it.each([
+    ["cat 'notes with spaces.md'", "Read", "file"],
+    ["/usr/bin/head -n 20 README.md", "Read", "file"],
+    ["tail -n 20 output.log", "Read", "file"],
+    ["wc -l src/main.ts", "Read", "file"],
+    ["sed -n '1,40p' src/main.ts", "Read", "file"],
+    ["sed -n '$p' src/main.ts", "Read", "file"],
+    ["rg -n 'alpha|beta' src/", "Search", "search"],
+    ['grep -n "some text" README.md', "Search", "search"],
+    ["rg --files --glob '*.tsx' ui/", "Search", "search"],
+    ["ls -la src/", "List", "files"],
+    ["/bin/pwd", "List", "files"],
+  ])("labels inspection command %s without changing its details", (command, verb, icon) => {
+    const input = { cmd: command };
+    const described = describeTool("functions.exec_command", input);
+    expect(described).toMatchObject({
+      summary: command,
+      action: { kind: "look", verb, icon, command },
+    });
+    expect(described.action.files).toBeUndefined();
+    expect(
+      completedTool({ type: "CommandExecution", command: ["/bin/zsh", "-lc", command] }),
+    ).toMatchObject({ input: { command: ["/bin/zsh", "-lc", command] }, ...described });
+  });
+
+  it.each([
+    "npm test",
+    "python -c 'print(1)'",
+    "sed -i '' 's/old/new/' file.ts",
+    "sed -n '1p; w copied.ts' file.ts",
+    "sed -n '1e touch marker' file.ts",
+    "sed -n -f script.sed file.ts",
+    "sed -n p -i file.ts",
+    "rg --pre=processor text src/",
+    "rg --pre processor text src/",
+    "rg --hostname-bin helper text src/",
+    "cat a.ts > copy.ts",
+    "cat a.ts 2>> errors.log",
+    "cat a.ts | tee copy.ts",
+    "ls && npm test",
+    "ls; rm file.ts",
+    "ls || npm test",
+    "cat a.ts &",
+    "ls\nnpm test",
+    'cat "$(touch marker)"',
+    "cat `touch marker`",
+    "cat <(npm test)",
+    "cat $FILE",
+    "cat 'unterminated",
+    "cat file \\\nnext",
+    "./cat file.ts",
+    "/custom/bin/ls",
+    "COMMAND=ls ls",
+    "sudo cat file.ts",
+    "",
+  ])("keeps writes, scripts, and uncertain command %s as Run", (command) => {
+    expect(describeTool("exec_command", { cmd: command }).action).toMatchObject({
+      kind: "run",
+      verb: "Run",
+      icon: "terminal",
+    });
+  });
+
+  it("carries read/search classifications through decoding, search, and shared summaries", async () => {
+    const history = fixture();
+    const file = history.write("inspection", [
+      meta("inspection"),
+      message("user", "Inspect the code"),
+      call("read", "exec_command", { cmd: "sed -n '1,40p' src/main.ts" }),
+      result("read", "source text"),
+      call("search", "shell", { command: ["rg", "needle", "src/"] }),
+      result("search", "src/main.ts:needle"),
+      call("write", "exec_command", { cmd: "sed -i 's/old/new/' src/main.ts" }),
+      result("write", ""),
+    ]);
+    const listing = await listSessions([{ reader: codexReader, roots: [history.root] }]);
+    const session = { ...(await codexReader.load(file)), source: codexReader.source };
+    const tools = session.turns[0].steps.filter((step) => step.kind === "tool");
+    expect(tools.map((step) => step.action.kind)).toEqual(["look", "look", "run"]);
+    expect(session.stats).toEqual({ toolCalls: 3, errors: 0, subagents: 0 });
+    expect(summarizeSession(session).changedFiles).toEqual([]);
+    expect(await searchSessions(listing, "needle")).toEqual([
+      expect.objectContaining({ id: "codex--inspection" }),
+    ]);
+  });
+
+  it("keeps native change previews scoped to each file without inventing missing old content", () => {
+    const changes = {
+      "/work/demo/new.ts": { type: "add", content: "const value = 1;\nexport { value };\n" },
+      "/work/demo/update.ts": {
+        type: "update",
+        unified_diff: "--- a/update.ts\n+++ b/update.ts\n@@ -1 +1 @@\n-old\n+new",
+      },
+      "/work/demo/current.ts": { type: "update", content: "current content\n" },
+      "/work/demo/deleted.ts": { type: "delete" },
+      "/work/demo/empty.ts": { type: "add", content: "" },
+    };
+    const tool = completedTool({ type: "FileChange", changes, status: "completed" }, "/work/demo")!;
+    expect(tool.input).toBe(changes);
+    expect(tool.action.files).toEqual([
+      expect.objectContaining({
+        path: "new.ts",
+        added: 2,
+        preview: { kind: "added", text: changes["/work/demo/new.ts"].content },
+      }),
+      expect.objectContaining({
+        path: "update.ts",
+        added: 1,
+        removed: 1,
+        preview: { kind: "diff", text: changes["/work/demo/update.ts"].unified_diff },
+      }),
+      expect.objectContaining({
+        path: "current.ts",
+        preview: { kind: "content", text: "current content\n" },
+      }),
+      expect.objectContaining({ path: "deleted.ts", preview: undefined }),
+      expect.objectContaining({ path: "empty.ts", preview: { kind: "added", text: "" } }),
+    ]);
+  });
+
+  it("splits multi-file patch previews without leaking the other file's source", () => {
+    const patch = [
+      "*** Begin Patch",
+      "*** Update File: /work/demo/first.ts",
+      "@@",
+      " context",
+      "-old first",
+      "+new first",
+      "*** Add File: second.ts",
+      "+second content",
+      "*** Delete File: missing.ts",
+      "*** End Patch",
+    ].join("\n");
+    expect(describeTool("apply_patch", patch, "/work/demo").action.files).toEqual([
+      {
+        path: "first.ts",
+        operation: "change",
+        added: 1,
+        removed: 1,
+        preview: { kind: "diff", text: "@@\n context\n-old first\n+new first" },
+      },
+      {
+        path: "second.ts",
+        operation: "change",
+        added: 1,
+        removed: 0,
+        preview: { kind: "diff", text: "+second content" },
+      },
+      { path: "missing.ts", operation: "change", added: 0, removed: 0 },
+    ]);
   });
 
   it("keeps a child's identity when a fork replays parent metadata and accepts recorded agent tasks", async () => {

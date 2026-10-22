@@ -29,7 +29,7 @@
 }
 .library-summary span,
 .session-metrics span {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted);
 }
 .library-summary strong {
@@ -67,7 +67,7 @@
   width: 100%;
   background: transparent;
   border: 0;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
   padding: 0 2px;
 }
@@ -80,7 +80,7 @@
   align-items: center;
   gap: 7px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
   white-space: nowrap;
 }
 .sort-control select {
@@ -172,7 +172,7 @@
   display: grid;
   gap: 4px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

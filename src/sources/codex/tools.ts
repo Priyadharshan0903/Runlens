@@ -16,7 +16,7 @@ export function describeTool(
           ?.split("\n")
           .find((line) => line.trim())
           ?.slice(0, 200) || name,
-      action: { kind: "run", verb: "Run", icon: "terminal", command },
+      action: describeCommand(command),
     };
   }
   if (name === "apply_patch") {
@@ -46,6 +46,70 @@ export function describeTool(
   return { summary: name, action: { kind: "other", verb: name, icon: "other" } };
 }
 
+/** Conventional display labels, not a shell evaluator or a guarantee of side-effect freedom. */
+function describeCommand(command: string | undefined): ToolAction {
+  const action: ToolAction = { kind: "run", verb: "Run", icon: "terminal", command };
+  const words = command ? inspectionWords(command) : undefined;
+  if (!words?.length) return action;
+
+  // Only recognize bare utility names or their usual system paths, not ./cat or custom wrappers.
+  const program = words[0].replace(/^\/(?:usr\/)?bin\//, "");
+  const args = words.slice(1);
+  if (["rg", "grep"].includes(program)) {
+    // ripgrep can launch an arbitrary preprocessor or hostname program.
+    if (args.some((arg) => /^--(?:pre|hostname-bin)(?:=|$)/.test(arg))) return action;
+    return { ...action, kind: "look", verb: "Search", icon: "search" };
+  }
+  if (["ls", "pwd"].includes(program)) {
+    return { ...action, kind: "look", verb: "List", icon: "files" };
+  }
+  if (["cat", "head", "tail", "wc"].includes(program)) {
+    return { ...action, kind: "look", verb: "Read", icon: "file" };
+  }
+  if (program === "sed") {
+    // sed supports writes and executable expressions; recognize only a simple print range.
+    if (args[0] === "-n") args.shift();
+    if (args.length && /^(?:(?:\d+|\$)(?:,(?:\d+|\$))?)?p$/.test(args[0])) {
+      if (args.slice(1).every((arg) => !arg.startsWith("-"))) {
+        return { ...action, kind: "look", verb: "Read", icon: "file" };
+      }
+    }
+  }
+  return action;
+}
+
+/** Read literal words from one simple command; unsupported shell syntax stays Run. */
+function inspectionWords(command: string): string[] | undefined {
+  if (/[\r\n]/.test(command)) return;
+  const words: string[] = [];
+  let word = "";
+  let quote = "";
+  let started = false;
+  for (const character of command) {
+    if (quote) {
+      if (character === quote) quote = "";
+      else {
+        if (quote === '"' && /[$`\\]/.test(character)) return;
+        word += character;
+      }
+    } else if (character === "'" || character === '"') {
+      quote = character;
+      started = true;
+    } else if (/\s/.test(character)) {
+      if (started) words.push(word);
+      word = "";
+      started = false;
+    } else {
+      if (/[\\$`;&|<>(){}#]/.test(character)) return;
+      word += character;
+      started = true;
+    }
+  }
+  if (quote) return;
+  if (started) words.push(word);
+  return words;
+}
+
 /** Newer Codex clients record the concrete operations executed inside an orchestration call. */
 export function completedTool(item: Record<string, unknown>, cwd?: string) {
   if (item.type === "CommandExecution") {
@@ -71,6 +135,15 @@ export function completedTool(item: Record<string, unknown>, cwd?: string) {
       const content = typeof change.content === "string" ? change.content : "";
       const diff = typeof change.unified_diff === "string" ? change.unified_diff : "";
       const lines = content ? content.replace(/\n$/, "").split("\n").length : 0;
+      const preview: FileEffect["preview"] = diff
+        ? { kind: "diff", text: diff }
+        : typeof change.content === "string"
+          ? {
+              kind:
+                change.type === "add" ? "added" : change.type === "delete" ? "removed" : "content",
+              text: content,
+            }
+          : undefined;
       files.push({
         path: relativePath(file, cwd),
         operation: "change",
@@ -84,6 +157,7 @@ export function completedTool(item: Record<string, unknown>, cwd?: string) {
             ? lines
             : diff.split("\n").filter((line) => line.startsWith("-") && !line.startsWith("---"))
                 .length,
+        preview,
       });
       if (typeof change.move_path === "string")
         files.push({
@@ -160,6 +234,7 @@ function commandText(value: unknown): string | undefined {
 /** Only explicit patch blocks count as edits; shell scripts are never guessed to be writes. */
 function patchEffects(patch: string, cwd?: string): FileEffect[] {
   const files = new Map<string, FileEffect>();
+  const previews = new Map<string, string[]>();
   let current: FileEffect | undefined;
   for (const line of patch.split("\n")) {
     const header = line.match(/^\*\*\* (?:Add|Update|Delete) File: (.+)$/);
@@ -172,11 +247,16 @@ function patchEffects(patch: string, cwd?: string): FileEffect[] {
       if (!files.has(path)) files.set(path, { path, operation: "change", added: 0, removed: 0 });
     } else if (line.startsWith("***")) {
       current = undefined;
-    } else if (current && line.startsWith("+")) {
-      current.added++;
-    } else if (current && line.startsWith("-")) {
-      current.removed++;
+    } else if (current) {
+      const lines = previews.get(current.path) ?? [];
+      lines.push(line);
+      previews.set(current.path, lines);
+      if (line.startsWith("+")) current.added++;
+      else if (line.startsWith("-")) current.removed++;
     }
+  }
+  for (const [path, lines] of previews) {
+    files.get(path)!.preview = { kind: "diff", text: lines.join("\n") };
   }
   return [...files.values()];
 }

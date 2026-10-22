@@ -1,8 +1,9 @@
 import { CaretDownIcon, FileTextIcon } from "@phosphor-icons/react";
 import { useState } from "preact/hooks";
-import type { Session } from "../../../src/core/types.js";
+import type { Session, ToolStep } from "../../../src/core/types.js";
 import { formatClock, plural } from "../../shared/format.js";
 import { AgentStep, CallDetails, ToolStepRow, TurnView } from "./transcript.js";
+import { changePreview } from "./change-preview.js";
 import {
   formatNumber,
   relativePath,
@@ -175,25 +176,70 @@ function FileChange({ file, cwd }: { file: FileActivity; cwd?: string }) {
               ),
             )
             .map((step) => (
-              <div key={step.id}>
-                <div class="change-call-label">
-                  <span>
-                    {step.name} · {formatClock(step.at)}
-                  </span>
-                  <span class={step.result?.status === "error" ? "fail-text" : "quiet"}>
-                    {step.result?.status === "error"
-                      ? "Failed"
-                      : step.result
-                        ? "Recorded"
-                        : "No result"}
-                  </span>
-                </div>
-                <CallDetails step={step} />
-              </div>
+              <FileChangeCall key={step.id} step={step} path={file.path} />
             ))}
         </div>
       )}
     </details>
+  );
+}
+
+function FileChangeCall({ step, path }: { step: ToolStep; path: string }) {
+  const [showOriginal, setShowOriginal] = useState(false);
+  const preview = step.action.files?.find((effect) => effect.path === path)?.preview;
+  const formatted = preview ? changePreview(preview) : undefined;
+
+  return (
+    <div class="change-call">
+      <div class="change-call-label">
+        <span>
+          {step.name} · {formatClock(step.at)}
+        </span>
+        <span class={step.result?.status === "error" ? "fail-text" : "quiet"}>
+          {step.result?.status === "error"
+            ? "Failed attempt"
+            : step.result
+              ? "Recorded"
+              : "No result"}
+        </span>
+      </div>
+      {formatted ? (
+        <>
+          <div class="detail-label">{formatted.label}</div>
+          <pre class="change-preview" aria-label={formatted.label}>
+            <code>
+              {preview?.text === "" ? (
+                <span class="context">
+                  {preview.kind === "diff"
+                    ? "No text changes in this recorded patch."
+                    : "Recorded file is empty."}
+                </span>
+              ) : (
+                formatted.lines.map((line, index) => (
+                  <span key={index} class={line.kind}>
+                    {line.text || " "}
+                  </span>
+                ))
+              )}
+            </code>
+          </pre>
+          {formatted.truncated && (
+            <p class="change-preview-note">
+              Preview limited to 400 lines or 40,000 characters. Open the original record for more.
+            </p>
+          )}
+        </>
+      ) : (
+        <p class="change-preview-note">No file content or patch was recorded for this path.</p>
+      )}
+      <details
+        class="change-record"
+        onToggle={(event) => setShowOriginal(event.currentTarget.open)}
+      >
+        <summary>Original tool input and output</summary>
+        {showOriginal && <CallDetails step={step} original />}
+      </details>
+    </div>
   );
 }
 

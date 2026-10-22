@@ -238,12 +238,14 @@ function GroupStep({ steps }: { steps: ToolStep[] }) {
     step.action.files?.some((file) => file.operation === "read"),
   ).length;
   const searches = steps.length - reads;
-  const label = [
-    reads && `Read ${plural(reads, "file")}`,
-    searches && `${reads ? "ran" : "Ran"} ${plural(searches, "search", "searches")}`,
-  ]
-    .filter(Boolean)
-    .join(" and ");
+  const label = steps.some((step) => step.action.command !== undefined)
+    ? plural(steps.length, "inspection call")
+    : [
+        reads && `Read ${plural(reads, "file")}`,
+        searches && `${reads ? "ran" : "Ran"} ${plural(searches, "search", "searches")}`,
+      ]
+        .filter(Boolean)
+        .join(" and ");
   const names = steps
     .map((s) =>
       s.action.files?.some((file) => file.operation === "read")
@@ -279,8 +281,9 @@ function GroupStep({ steps }: { steps: ToolStep[] }) {
   );
 }
 
-export function CallDetails({ step }: { step: ToolStep }) {
-  const { command, replacement } = step.action;
+export function CallDetails({ step, original = false }: { step: ToolStep; original?: boolean }) {
+  const command = original ? undefined : step.action.command;
+  const replacement = original ? undefined : step.action.replacement;
   let inputView;
   if (command !== undefined) {
     inputView = <pre class="code">{command}</pre>;

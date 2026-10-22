@@ -6,6 +6,8 @@ import { parseRecords } from "../src/sources/claude/parse.js";
 import { searchSessions } from "../src/core/search.js";
 import { buildTurns } from "../src/core/tree.js";
 import { formatCost } from "../ui/shared/format.js";
+import { describeTool } from "../src/sources/claude/tools.js";
+import { changePreview } from "../ui/features/session/change-preview.js";
 import {
   allCalls,
   exportMarkdown,
@@ -29,6 +31,62 @@ const usage = (id: string, output: number) => ({
       cache_creation_input_tokens: 10,
     },
   },
+});
+
+describe("recorded change previews", () => {
+  it("keeps unified headers and context neutral, marking only recorded added/removed lines", () => {
+    const text =
+      "--- a/file.ts\n+++ b/file.ts\n@@ -1,2 +1,2 @@\n context\n-old\n+<script>literal text</script>";
+    expect(changePreview({ kind: "diff", text })).toMatchObject({
+      label: "Recorded patch",
+      truncated: false,
+      lines: [
+        { kind: "context", text: "--- a/file.ts" },
+        { kind: "context", text: "+++ b/file.ts" },
+        { kind: "context", text: "@@ -1,2 +1,2 @@" },
+        { kind: "context", text: " context" },
+        { kind: "removed", text: "-old" },
+        { kind: "added", text: "+<script>literal text</script>" },
+      ],
+    });
+    expect(changePreview({ kind: "content", text: "+this is file content" }).lines).toEqual([
+      { kind: "context", text: "+this is file content" },
+    ]);
+  });
+
+  it("bounds large previews by lines and characters without modifying the recorded text", () => {
+    const preview = { kind: "added" as const, text: "line\n".repeat(500) };
+    expect(changePreview(preview).lines).toHaveLength(400);
+    expect(changePreview(preview).truncated).toBe(true);
+    expect(preview.text).toBe("line\n".repeat(500));
+    const long = changePreview({ kind: "content", text: "x".repeat(50_000) });
+    expect(long.lines[0].text).toHaveLength(40_000);
+    expect(long.truncated).toBe(true);
+    expect(changePreview({ kind: "added", text: "" }).truncated).toBe(false);
+    expect(changePreview({ kind: "added", text: "first\r\nsecond\r\n" }).lines).toEqual([
+      { kind: "added", text: "+first" },
+      { kind: "added", text: "+second" },
+    ]);
+  });
+
+  it("normalizes Claude replacements, writes and multi-edits for the shared view", () => {
+    expect(
+      describeTool("Edit", { file_path: "a.ts", old_string: "before", new_string: "after" }).action
+        .files?.[0].preview,
+    ).toEqual({ kind: "diff", text: "-before\n+after" });
+    expect(
+      describeTool("Write", { file_path: "a.ts", content: "line\nnext" }).action.files?.[0].preview,
+    ).toEqual({ kind: "content", text: "line\nnext" });
+    expect(
+      describeTool("MultiEdit", {
+        file_path: "a.ts",
+        edits: [
+          { old_string: "one", new_string: "two" },
+          { old_string: "three", new_string: "four" },
+        ],
+      }).action.files?.[0].preview,
+    ).toEqual({ kind: "diff", text: "-one\n+two\n@@\n-three\n+four" });
+  });
 });
 
 describe("recorded token usage", () => {

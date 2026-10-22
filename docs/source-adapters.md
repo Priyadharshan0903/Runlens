@@ -88,6 +88,12 @@ Raw inputs remain available for other calls. `action.detail` can override the di
 for example to show an MCP tool name beside its server. The UI should never inspect an agent's
 raw field names to recover these meanings.
 
+File effects can include `preview: { kind, text }` with `kind` set to `diff`, `added`, `removed`,
+or `content`. Scope this text to that effect's path. Preserve recorded patch context and source
+indentation; do not read current working files to reconstruct history. Use `content` when only a
+file snapshot is recorded and no previous version exists. Leave the preview absent when the
+record contains no source text. Keep raw input unchanged for inspection and exports.
+
 Omit cost, tokens, and reasoning when the source does not record them. Do not turn missing data
 into zero or estimate hidden reasoning. Recorded thinking events can populate optional step
 reasoning independently of the agent's explanatory text. Cost already displays a dash when absent.

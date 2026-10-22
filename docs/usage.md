@@ -98,14 +98,14 @@ pause while viewing a session, where the sidebar returns to the full library.
 
 ## Inspect a session
 
-| View         | What it shows                                                                                                                                           |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Timeline     | Prompts, tool calls, outputs, recorded context, interruptions, and final answers. The activity strip jumps to a call and opens its collapsed ancestors. |
-| Conversation | Prompts and final answers, with user interjections and compaction markers, without the tool-call stream.                                                |
-| Changes      | File edits grouped by path, including subagent work. Expand a file for the recorded replacement blocks and tool results.                                |
-| Agents       | Subagent tasks, calls, outputs, durations, and background/stopped states. The inspector roster jumps to a run in the timeline.                          |
-| Statistics   | Recorded token usage, cache reads/writes, models, tool distribution, and file activity.                                                                 |
-| Failures     | Calls whose tool results explicitly recorded an error, with links back to the timeline.                                                                 |
+| View         | What it shows                                                                                                                                                           |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Timeline     | Prompts, tool calls, outputs, recorded context, interruptions, and final answers. The activity strip jumps to a call and opens its collapsed ancestors.                 |
+| Conversation | Prompts and final answers, with user interjections and compaction markers, without the tool-call stream.                                                                |
+| Changes      | File edits grouped by path, including subagent work. Expand a file for readable recorded patches or file content. Original tool input/output stays behind a disclosure. |
+| Agents       | Subagent tasks, calls, outputs, durations, and background/stopped states. The inspector roster jumps to a run in the timeline.                                          |
+| Statistics   | Recorded token usage, cache reads/writes, models, tool distribution, and file activity.                                                                                 |
+| Failures     | Calls whose tool results explicitly recorded an error, with links back to the timeline.                                                                                 |
 
 In Timeline and Conversation, each turn pairs your question on the left with the agent's work on
 the right. The question stays visible while reading a long response. Collapsing agent work does not
@@ -169,6 +169,11 @@ Transcripts and exports can include source code, command output, and secrets pri
 - File line counts describe successful recorded replacement blocks. They are not a net Git diff;
   repeated edits and `replace_all` mean they can differ from final repository changes. Failed edits
   stay visible as attempts but do not increase successful replacement counts.
+- Change previews show only the selected path's recorded patch or content, preserving line breaks
+  and indentation. Added/removed lines carry signs as well as colour. A full recorded file without
+  its previous version is labelled as content, not a reconstructed diff. Missing source text is
+  stated explicitly. Expanded previews are limited to 400 lines or 40,000 characters; the original
+  tool record remains available separately. Files and raw records render only when opened.
 - The text before a tool call is the agent's recorded context, not independently verified intent.
   A tool result without an error does not establish that the overall task succeeded.
 - Elapsed session duration includes idle time between messages.

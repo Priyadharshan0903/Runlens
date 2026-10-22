@@ -1,5 +1,37 @@
 # Changelog
 
+### 2026-10-22 — Readable recorded file changes
+
+- Replaced raw JSON as the default Changes view with per-file recorded patches or file content.
+  Preserve indentation and line breaks, mark additions/removals, and keep original input/output
+  behind a separate disclosure. Multi-file calls show only the selected path's preview.
+- Normalize Codex completed file operations and patch blocks, and Claude edits, multi-edits, and
+  writes into optional shared file previews. Keep missing source text explicit and distinguish
+  file snapshots from diffs. Failed/pending edits retain their status and existing count rules.
+- Keep files and original records lazily mounted; limit formatted previews to 400 lines or
+  40,000 characters without modifying the underlying record. No runtime dependency was added.
+
+### 2026-10-22 — Readable labels and phone error previews
+
+- Increased primary navigation, filters, metric labels, session tabs, and search controls to 13px.
+  Timestamps, IDs, and secondary row metadata retain their compact sizes.
+- Wrap library titles to two lines on tablet and phone widths so longer session names are readable.
+- Constrain failed-call previews and wrap them to two lines on phones, preserving the reading margin.
+  Full error output remains available by expanding the call.
+- Reviewed the taste inspector's library/session reports and screenshots in both themes at 1440,
+  768, and 390px. The initial phone error-spacing failure is addressed; browser reinspection is pending.
+
+### 2026-10-22 — Codex inspection command labels
+
+- Label simple Codex inspection commands as Read, Search, or List using shared lookup actions.
+  Keep compound scripts, redirects, expansions, sed writes/executable expressions, search
+  preprocessors, and uncertain commands as Run. Preserve original commands, inputs, and outputs.
+- Classify both canonical tool calls and concrete completed operations inside orchestration calls.
+  Do not execute shell text or infer file effects from these labels. Folded inspection commands
+  display call counts instead of unsupported file counts.
+- Add regression coverage for quoted arguments, system utility paths, native shell arrays,
+  modifying/compound commands, and decoding through shared session summaries and search.
+
 ### 2026-10-22 — Codex commands and session sync status
 
 - Fixed empty Codex command details: completed operations record commands as argument arrays,

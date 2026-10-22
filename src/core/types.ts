@@ -28,6 +28,8 @@ export interface FileEffect {
   /** Recorded replacement counts; applied only when the call succeeds. */
   added: number;
   removed: number;
+  /** Recorded text for this file only; never reconstructed from the current filesystem. */
+  preview?: { kind: "diff" | "added" | "removed" | "content"; text: string };
 }
 
 export interface ToolAction {

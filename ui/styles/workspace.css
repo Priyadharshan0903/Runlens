@@ -55,7 +55,7 @@
   gap: 8px;
   padding: 0 12px 22px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
 }
 .workspace-dot {
   width: 7px;
@@ -70,7 +70,7 @@
 }
 .agent-select-label {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
 }
 .agent-picker {
   position: relative;
@@ -130,7 +130,7 @@
   min-height: 34px;
   padding: 6px;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: 13px;
   text-align: left;
 }
 .agent-options button:hover,
@@ -174,7 +174,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 22px 6px 0 12px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted);
 }
 .recent-list {
@@ -202,7 +202,7 @@
   min-height: 32px;
   border-bottom: 2px solid transparent;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
 }
 .grouping-control button[aria-pressed="true"] {
   border-bottom-color: var(--ink);
@@ -222,7 +222,7 @@
   text-align: left;
   color: var(--muted);
   border-radius: 6px;
-  font-size: 12px;
+  font-size: 13px;
 }
 .project-heading:not(:disabled):hover {
   background: var(--surface-2);
@@ -344,7 +344,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 500;
   line-height: 20px;
 }
@@ -421,7 +421,7 @@
   gap: 12px;
   flex: 1;
   min-width: 0;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted);
 }
 .breadcrumb a {
@@ -448,7 +448,7 @@
   border: 0;
   outline: none;
   width: 100%;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--ink);
 }
 .global-search:focus-within {
