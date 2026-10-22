@@ -307,6 +307,7 @@ nav a:focus-visible::after,
   border-radius: 0 0 var(--radius) var(--radius);
 }
 .image-viewport {
+  display: block;
   overflow: hidden;
   border-radius: 14px;
   aspect-ratio: 1.8;
@@ -432,20 +433,69 @@ figcaption {
   padding-top: 20px;
   color: var(--paper-muted);
 }
-.detail-picture {
+.use-cases {
   margin-top: 56px;
-  overflow: hidden;
-}
-.detail-picture img {
-  width: 100%;
-  height: clamp(260px, 32vw, 470px);
-  object-fit: cover;
-  object-position: center 80%;
+  padding: clamp(24px, 4vw, 56px);
   border-radius: var(--radius) var(--radius) 0 0;
+  background: var(--ground);
+  color: var(--ink);
 }
-.detail-picture figcaption {
-  padding-top: 20px;
-  color: var(--paper-muted);
+.use-cases-intro {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8%;
+  align-items: start;
+  margin-bottom: 32px;
+}
+.use-cases summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+  padding-block: 24px;
+  list-style: none;
+  cursor: pointer;
+  font-size: clamp(22px, 2.3vw, 32px);
+  line-height: 1.2;
+  letter-spacing: -0.035em;
+}
+.use-cases summary::-webkit-details-marker {
+  display: none;
+}
+.use-cases summary span {
+  flex-shrink: 0;
+  transition: transform 250ms var(--ease);
+}
+.use-cases details[open] summary span {
+  transform: rotate(45deg);
+}
+.use-case-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8%;
+  padding-block: 8px 28px;
+}
+.use-case-question {
+  font-size: 22px;
+  line-height: 1.35;
+  letter-spacing: -0.035em;
+  max-width: 25ch;
+}
+.use-case-outcome {
+  margin-top: 20px;
+}
+.use-cases > .text-link {
+  margin-top: 28px;
+}
+@media (max-width: 700px) {
+  .use-cases-intro,
+  .use-case-body {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .use-cases summary {
+    padding-block: 22px;
+  }
 }
 .walkthrough {
   display: grid;
@@ -565,10 +615,9 @@ figcaption {
   min-width: 0;
 }
 .private-picture img {
-  aspect-ratio: 0.85;
-  object-fit: cover;
-  object-position: left;
-  border-radius: 100px 100px 0 0;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius) var(--radius) 0 0;
 }
 .private-picture figcaption {
   margin-top: 20px;
@@ -736,22 +785,59 @@ figcaption {
   font-size: 16px;
 }
 .footer {
+  position: relative;
+  isolation: isolate;
   margin-top: 140px;
   padding-bottom: 32px;
   overflow: hidden;
 }
+.footer-signature {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  align-items: center;
+  min-height: clamp(320px, 44vw, 680px);
+  margin-block: 0 40px;
+}
+.footer-atmosphere {
+  position: absolute;
+  inset: 0 calc(-1 * var(--gutter));
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.footer-atmosphere svg {
+  width: 100%;
+  height: 100%;
+}
+.footer-paths {
+  stroke: var(--raised);
+  stroke-width: 2;
+}
+.footer-junctions {
+  fill: var(--paper-muted);
+}
+.footer-packets {
+  fill: var(--muted);
+}
 .footer-close {
+  position: relative;
+  z-index: 2;
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 20px;
 }
 .footer-close p {
+  position: relative;
+  top: 60px;
   font-size: clamp(26px, 3vw, 36px);
   line-height: 1.25;
   letter-spacing: -0.04em;
 }
 .footer-arrow {
+  position: relative;
+  top: var(--footer-arrow-shift, 60px);
   display: grid;
   place-items: center;
   font-size: 64px;
@@ -766,11 +852,13 @@ figcaption {
   transform: translate(4px, -8px);
 }
 .footer-wordmark {
+  position: relative;
+  z-index: 1;
   font-size: clamp(100px, 24.3vw, 380px);
   font-weight: 600;
   line-height: 1.08;
   letter-spacing: -0.085em;
-  margin: 40px 0;
+  margin: 0;
 }
 .footer-bottom,
 .footer-bottom > div {
@@ -781,12 +869,98 @@ figcaption {
   flex-wrap: wrap;
 }
 .footer-bottom {
+  position: relative;
+  z-index: 2;
+  top: var(--footer-links-shift, 0px);
   font-size: 14px;
+}
+@media (min-width: 1001px) and (max-width: 1200px) {
+  .footer-bottom > div {
+    display: grid;
+    grid-template-columns: repeat(2, max-content);
+    gap: 4px 24px;
+  }
+  .footer-bottom a {
+    font-size: 13px;
+    line-height: 1.2;
+  }
+}
+@media (max-width: 1000px) {
+  .footer-close p,
+  .footer-arrow,
+  .footer-bottom {
+    top: 0;
+  }
+  .footer-signature {
+    margin-top: 40px;
+  }
 }
 .independent {
   color: var(--muted);
   font-size: 13px;
   margin-top: 28px;
+}
+
+.screenshot-link {
+  display: block;
+  cursor: zoom-in;
+}
+.screenshot-preview {
+  width: min(1600px, 94vw);
+  max-width: 94vw;
+  max-height: 92vh;
+  padding: 0;
+  border: 0;
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--ink);
+}
+.screenshot-preview::backdrop {
+  background: rgb(0 0 0 / 85%);
+}
+.screenshot-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 20px;
+  background: var(--surface);
+}
+.screenshot-toolbar p {
+  font-size: 16px;
+}
+.screenshot-toolbar > div {
+  display: flex;
+  gap: 8px;
+}
+.screenshot-toolbar button {
+  min-height: 44px;
+  padding: 10px 18px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--raised);
+}
+.screenshot-toolbar button:hover {
+  background: var(--ink);
+  color: var(--ground);
+}
+.screenshot-scroll {
+  overflow: auto;
+  max-height: calc(92vh - 76px);
+}
+.screenshot-scroll img {
+  width: 100%;
+  max-width: none;
+  height: auto;
+}
+.screenshot-preview[data-zoomed] .screenshot-scroll img {
+  width: 200%;
+}
+body:has(.screenshot-preview[open]) {
+  overflow: hidden;
 }
 
 @media (min-width: 1601px) {
@@ -1024,8 +1198,15 @@ figcaption {
     gap: 40px;
   }
   .private-picture img {
-    aspect-ratio: 1.1;
-    border-radius: 60px 60px 0 0;
+    border-radius: var(--radius) var(--radius) 0 0;
+  }
+  .screenshot-toolbar {
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 12px;
+  }
+  .screenshot-toolbar p {
+    font-size: 14px;
   }
   .mcp-story {
     padding: 26px;
@@ -1104,7 +1285,7 @@ figcaption {
   .footer-close p {
     font-size: 25px;
   }
-  .footer-wordmark {
+  .footer-signature {
     margin-block: 32px;
   }
   .footer-bottom,
@@ -1125,5 +1306,8 @@ figcaption {
   }
   [data-parallax] {
     transform: none !important;
+  }
+  .footer-packets {
+    display: none;
   }
 }

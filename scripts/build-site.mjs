@@ -1,7 +1,7 @@
 // The public website is independent of the local session viewer and npm archive.
 import { build, context } from "esbuild";
 import { createHash } from "node:crypto";
-import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 process.chdir(fileURLToPath(new URL("..", import.meta.url)));
@@ -36,10 +36,13 @@ let html = await readFile("website/index.html", "utf8");
 for (const [name, source] of Object.entries(screenshotSources)) {
   html = html.replaceAll(`./assets/${name}.png`, source);
 }
-const version = createHash("sha256")
-  .update(html)
-  .update(await readFile("website/main.ts"))
-  .update(await readFile("website/styles.css"))
+const versionHash = createHash("sha256").update(html);
+for (const file of (await readdir("website"))
+  .filter((file) => /\.(ts|css|html)$/.test(file))
+  .sort()) {
+  versionHash.update(file).update(await readFile(`website/${file}`));
+}
+const version = versionHash
   .update(await readFile("ui/assets/runlens.svg"))
   .digest("hex")
   .slice(0, 12);

@@ -56,7 +56,13 @@
             <a href="#next">The next chapter <span aria-hidden="true">↘</span></a>
           </div>
           <figure class="hero-shot">
-            <div class="image-viewport" data-parallax>
+            <a
+              class="image-viewport screenshot-link"
+              href="./assets/session-dark.png"
+              data-screenshot
+              data-parallax
+              aria-label="Enlarge the session timeline screenshot"
+            >
               <img
                 id="hero-screenshot"
                 src="./assets/session-dark.png"
@@ -65,7 +71,7 @@
                 alt="Runlens session timeline showing a prompt, a failed test, a patch, and a successful test."
                 fetchpriority="high"
               />
-            </div>
+            </a>
             <figcaption>
               <span>Your question. The agent’s work. The full picture.</span>
               <div class="theme-picker" role="group" aria-label="Screenshot theme" hidden>
@@ -143,14 +149,21 @@
               </button>
             </div>
             <figure class="preview-image" data-reveal>
-              <img
-                id="feature-screenshot"
-                src="./assets/library-dark.png"
-                width="1440"
-                height="1000"
-                alt="Runlens dark session library with projects, Claude Code and Codex sessions, search, and filters."
-                loading="lazy"
-              />
+              <a
+                class="screenshot-link"
+                href="./assets/library-dark.png"
+                data-screenshot
+                aria-label="Enlarge the product screenshot"
+              >
+                <img
+                  id="feature-screenshot"
+                  src="./assets/library-dark.png"
+                  width="1440"
+                  height="1000"
+                  alt="Runlens dark session library with projects, Claude Code and Codex sessions, search, and filters."
+                  loading="lazy"
+                />
+              </a>
               <figcaption id="preview-caption">
                 One library for your supported agents. Demo sessions shown.
               </figcaption>
@@ -162,18 +175,66 @@
               viewer.
             </p></noscript
           >
-          <figure class="detail-picture" data-reveal>
-            <img
-              src="./assets/session-light.png"
-              width="1440"
-              height="1000"
-              alt="Detail of the light Runlens timeline: a question paired with a failed test, patch, and successful rerun."
-              loading="lazy"
-            />
-            <figcaption>
-              The details stay connected: your request, the recorded calls, and the response.
-            </figcaption>
-          </figure>
+          <div class="use-cases">
+            <div class="use-cases-intro" data-reveal>
+              <h3>Put your history to work.</h3>
+              <p>
+                Your next question might already have a trail. Find a familiar fix, review a change,
+                or pick up where you left off.
+              </p>
+            </div>
+            <details name="runlens-use-cases" open>
+              <summary>An error you’ve seen before.<span aria-hidden="true">+</span></summary>
+              <div class="use-case-body" data-reveal>
+                <p class="use-case-question">“Where did we fix that timeout?”</p>
+                <div>
+                  <p>
+                    Search a phrase from the error or the file name across your Claude Code and
+                    Codex history. Open the matching run and see the approach, commands, and
+                    recorded result together.
+                  </p>
+                  <p class="use-case-outcome">
+                    Start with what you already tried, including the approaches that failed.
+                  </p>
+                </div>
+              </div>
+            </details>
+            <details name="runlens-use-cases">
+              <summary>A change you didn’t expect.<span aria-hidden="true">+</span></summary>
+              <div class="use-case-body" data-reveal>
+                <p class="use-case-question">“What actually happened to this file?”</p>
+                <div>
+                  <p>
+                    Inspect the recorded patch, read the surrounding request, and follow the calls
+                    that led to it. Check what tests were recorded after the edit before deciding
+                    what to review next.
+                  </p>
+                  <p class="use-case-outcome">
+                    Make the next review decision with the work in front of you.
+                  </p>
+                </div>
+              </div>
+            </details>
+            <details name="runlens-use-cases">
+              <summary>A session to hand off.<span aria-hidden="true">+</span></summary>
+              <div class="use-case-body" data-reveal>
+                <p class="use-case-question">“Where did we leave this?”</p>
+                <div>
+                  <p>
+                    Reopen the conversation, follow linked child runs, and add a note about what
+                    matters next. Export Markdown or JSON when you want to carry the session into a
+                    review or a new conversation.
+                  </p>
+                  <p class="use-case-outcome">
+                    Bring the context forward instead of rebuilding it from memory.
+                  </p>
+                </div>
+              </div>
+            </details>
+            <a class="text-link" href="#install"
+              >Try it with your history <span aria-hidden="true">↗</span></a
+            >
+          </div>
         </div>
       </section>
 
@@ -290,14 +351,23 @@
             >
           </div>
           <figure class="private-picture" data-reveal>
-            <img
-              src="./assets/library-light.png"
-              width="1440"
-              height="1000"
-              alt="Runlens light theme with a local session library, agent selection, project groups, and pinned sessions."
-              loading="lazy"
-            />
-            <figcaption>Light or dark. The same local workspace.</figcaption>
+            <a
+              class="screenshot-link"
+              href="./assets/library-light.png"
+              data-screenshot
+              aria-label="Enlarge the light session library screenshot"
+            >
+              <img
+                src="./assets/library-light.png"
+                width="1440"
+                height="1000"
+                alt="Runlens light theme with a local session library, agent selection, project groups, and pinned sessions."
+                loading="lazy"
+              />
+            </a>
+            <figcaption>
+              Light or dark. The same local workspace. Click to take a closer look.
+            </figcaption>
           </figure>
         </div>
       </section>
@@ -486,11 +556,56 @@ runlens</code></pre>
     </main>
 
     <footer class="footer frame">
-      <div class="footer-close" data-reveal>
+      <div class="footer-close">
         <p>Every run has a story.<br />Go see yours.</p>
         <a href="#install" class="footer-arrow" aria-label="Go to setup commands">↗</a>
       </div>
-      <div class="footer-wordmark" aria-hidden="true">Runlens</div>
+      <div class="footer-signature">
+        <div class="footer-atmosphere" aria-hidden="true">
+          <svg viewBox="0 0 1440 620" preserveAspectRatio="xMidYMid slice" fill="none">
+            <g class="footer-paths">
+              <path
+                data-flow-path
+                d="M-80 76H260Q284 76 284 100V148Q284 172 308 172H710Q734 172 734 148V120Q734 96 758 96H1520"
+              />
+              <path
+                data-flow-path
+                d="M-80 218H160Q184 218 184 242V280Q184 304 208 304H920Q944 304 944 280V230Q944 206 968 206H1520"
+              />
+              <path
+                data-flow-path
+                d="M-80 408H380Q404 408 404 384V342Q404 318 428 318H1120Q1144 318 1144 342V380Q1144 404 1168 404H1520"
+              />
+              <path
+                data-flow-path
+                d="M-80 530H150Q174 530 174 506V466Q174 442 198 442H660Q684 442 684 466V512Q684 536 708 536H1520"
+              />
+              <path
+                data-flow-path
+                d="M-80 140H100Q124 140 124 164V354Q124 378 148 378H540Q564 378 564 402V564Q564 588 588 588H1520"
+              />
+              <path data-flow-path d="M-80 582H960Q984 582 984 558V80Q984 56 1008 56H1520" />
+            </g>
+            <g class="footer-junctions">
+              <circle cx="384" cy="172" r="4" />
+              <circle cx="640" cy="304" r="4" />
+              <circle cx="820" cy="318" r="4" />
+              <circle cx="420" cy="442" r="4" />
+              <circle cx="984" cy="150" r="4" />
+              <circle cx="124" cy="270" r="4" />
+            </g>
+            <g class="footer-packets">
+              <rect data-flow-packet x="-6" y="-2" width="12" height="4" rx="2" />
+              <rect data-flow-packet x="-6" y="-2" width="12" height="4" rx="2" />
+              <rect data-flow-packet x="-6" y="-2" width="12" height="4" rx="2" />
+              <rect data-flow-packet x="-6" y="-2" width="12" height="4" rx="2" />
+              <rect data-flow-packet x="-6" y="-2" width="12" height="4" rx="2" />
+              <rect data-flow-packet x="-6" y="-2" width="12" height="4" rx="2" />
+            </g>
+          </svg>
+        </div>
+        <div class="footer-wordmark" aria-hidden="true">Runlens</div>
+      </div>
       <div class="footer-bottom">
         <span>Made for the curious. Open source under MIT.</span>
         <div>
@@ -509,5 +624,16 @@ runlens</code></pre>
         not imply endorsement.
       </p>
     </footer>
+
+    <dialog id="screenshot-preview" class="screenshot-preview" aria-labelledby="screenshot-title">
+      <div class="screenshot-toolbar">
+        <p id="screenshot-title">Runlens · Product preview</p>
+        <div>
+          <button type="button" data-screenshot-zoom aria-pressed="false">Zoom in</button>
+          <button type="button" data-screenshot-close autofocus>Close ×</button>
+        </div>
+      </div>
+      <div class="screenshot-scroll"><img width="1440" height="1000" alt="" /></div>
+    </dialog>
   </body>
 </html>

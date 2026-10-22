@@ -14,3 +14,9 @@ from someone's real sessions. Update them when changing these views, and check b
 Refreshed on 22 October 2026 from the current application build, including the agent-face Runlens
 mark. All four captures verified the rendered mark against `ui/assets/runlens.svg`. The landing
 page reuses these same demo images.
+
+Captures use a 1440 × 1000 CSS-pixel viewport at 3× device scale, producing lossless 4320 × 3000
+PNGs directly from the application. Keep the HTML image dimensions at 1440 × 1000 to preserve
+layout while the additional pixels keep text sharp on high-density displays. Capture at the
+target density rather than enlarging an existing PNG. The website links every screenshot to a
+larger preview with optional zoom.

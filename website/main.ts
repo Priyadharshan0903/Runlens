@@ -1,4 +1,7 @@
 import "./styles.css";
+import { initializeFooterTraces } from "./footer-traces";
+import { initializeFooterLayout } from "./footer-layout";
+import { initializeScreenshotPreview } from "./screenshot-preview";
 
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
@@ -41,6 +44,7 @@ themeButtons.forEach((button) => {
     if (!heroImage || button.getAttribute("aria-pressed") === "true") return;
     themeButtons.forEach((item) => item.setAttribute("aria-pressed", String(item === button)));
     heroImage.src = __SITE_IMAGES__[`session-${button.dataset.theme}`];
+    heroImage.closest<HTMLAnchorElement>("[data-screenshot]")?.setAttribute("href", heroImage.src);
     animateImage(heroImage);
   });
 });
@@ -69,6 +73,9 @@ function selectPreview(button: HTMLButtonElement) {
     return;
   previewButtons.forEach((item) => item.setAttribute("aria-pressed", String(item === button)));
   featureImage.src = __SITE_IMAGES__[key];
+  featureImage
+    .closest<HTMLAnchorElement>("[data-screenshot]")
+    ?.setAttribute("href", featureImage.src);
   featureImage.alt = previews[key].alt;
   if (caption) caption.textContent = previews[key].caption;
   animateImage(featureImage);
@@ -138,7 +145,9 @@ function updateParallax() {
   const bounds = parallax.getBoundingClientRect();
   if (bounds.bottom < 0 || bounds.top > window.innerHeight) return;
   const progress = Math.max(0, Math.min(1, 1 - bounds.top / window.innerHeight));
-  parallax.style.transform = `translateY(${progress * -8}px)`;
+  const density = window.devicePixelRatio || 1;
+  const offset = Math.round(progress * -8 * density) / density;
+  parallax.style.transform = `translateY(${offset}px)`;
 }
 window.addEventListener(
   "scroll",
@@ -151,3 +160,7 @@ reducedMotion.addEventListener("change", () => {
   if (reducedMotion.matches) document.getAnimations().forEach((animation) => animation.cancel());
   updateParallax();
 });
+
+initializeScreenshotPreview();
+initializeFooterLayout();
+initializeFooterTraces(reducedMotion);

@@ -1,5 +1,50 @@
 # Changelog
 
+### 2026-10-22 — Practical website examples and aligned footer controls
+
+- Replace the six-view reference table with expandable scenarios showing when Runlens helps:
+  finding a familiar fix, reviewing an unexpected change, and carrying context into a handoff.
+- Lower the closing sentence by 60px on desktop, connect the arrow to the upper trace, and center
+  the license/navigation row between the lower two traces. Retain the original animation paths.
+- Align controls through SVG coordinates and resize observation, with normal flow at smaller sizes.
+- Validation: all 107 tests and both builds passed. Browser checks covered all three disclosures,
+  keyboard activation, arrow/trace contact, link placement between lanes and clear of branches,
+  the 60px copy offset, and six viewport widths. Final layout inspection reported no failures.
+
+### 2026-10-22 — Restore the full footer animation
+
+- Restore the original trace animation's full-width, full-height field around the Runlens name,
+  preserving its paths, packet motion, and typography.
+- Place the closing sentence and action above that field and the small footer copy and links below
+  it, rather than shortening the animated area to the wordmark's height.
+- Validation: all 107 tests and both builds passed. Browser checks verified the full animation field,
+  clear copy and links at four widths, unchanged wordmark scale, playback, and reduced motion.
+
+### 2026-10-22 — Clear footer copy around the animation
+
+- Confine the animated traces to the large Runlens signature. Keep the closing sentence and action
+  above it, and the license, navigation links, and independence notice below it.
+- Preserve the wordmark's size and spacing. Pause trace playback based on the signature's visibility.
+- Replace the repeated timeline close-up with a concise guide mapping review questions to the six
+  session views, including Changes, Agents, Statistics, and Failures.
+- Validation: all 107 project tests and both builds passed. Browser checks confirmed clear space
+  around footer copy at 1440, 1280, 768, and 390px, unchanged wordmark scale, all six guide rows,
+  trace playback, reduced motion, and no horizontal overflow or runtime errors.
+
+### 2026-10-22 — Sharper website images and an animated close
+
+- Recaptured all four demo screenshots directly at 3× pixel density (4320 × 3000 lossless PNGs),
+  improving Retina clarity in the website and README without enlarging existing images.
+- Replaced the privacy section's tall crop with the complete library view and added expandable
+  screenshot previews with zoom, native Escape/focus behavior, and plain image-link fallback.
+- Added subtle branching run traces behind the closing wordmark. Packet motion pauses offscreen
+  and when the document is hidden; reduced motion keeps only the static background.
+- Snap hero movement to physical pixels and include all website source modules in asset versioning.
+- Validation: `npm run check` passed (107 tests), the website build passed, and browser checks
+  verified PNG dimensions, expansion/zoom, Escape/focus restoration, theme links, the complete
+  privacy image, footer playback/offscreen pause, reduced-motion stop/restart, and four viewport
+  widths. Layout inspection passed at 1440, 768, and 390px without failures.
+
 ### 2026-10-22 — Runlens landing page
 
 - Added an independent monochrome website with product screenshots, benefits, an interactive
