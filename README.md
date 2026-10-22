@@ -139,6 +139,8 @@ stays fixed when you change folders. Use a distinct server name for another proj
 grant it with `--allow-project` and reconnect. Agents cannot grant themselves access, and remembered
 or interactive project approvals are not implemented.
 MCP responses contain bounded, masked history and may reach your agent's model provider.
+Search and summary pages include resumable cursors and scan progress. Oversized transcripts are
+reported as skips so other sessions remain searchable; follow cursors even after empty partial pages.
 
 [Full setup, future npm commands, permissions, and limits →](docs/mcp.md)
 

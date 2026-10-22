@@ -120,31 +120,6 @@ export function historyResponse<T extends Record<string, unknown>>(value: T) {
   return response;
 }
 
-/** Trim whole entries so paging still makes progress and never splits a JSON record. */
-export function historyPage<T>(
-  base: Record<string, unknown>,
-  key: "results" | "turns",
-  items: T[],
-  offset: number,
-  hasMore: boolean,
-) {
-  const page = [...items];
-  for (;;) {
-    try {
-      return historyResponse({
-        ...base,
-        [key]: page,
-        next_offset: hasMore ? offset + page.length : null,
-      });
-    } catch (error) {
-      if (!(error instanceof HistoryError) || error.code !== "response_limit" || page.length <= 1)
-        throw error;
-      page.pop();
-      hasMore = true;
-    }
-  }
-}
-
 export function historyFailure(error: unknown) {
   return historyResponse({
     error: error instanceof HistoryError ? error.code : "history_unavailable",

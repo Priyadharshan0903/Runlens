@@ -2,15 +2,16 @@ import { Client } from "@modelcontextprotocol/client";
 import { StdioClientTransport } from "@modelcontextprotocol/client/stdio";
 import { InMemoryTransport } from "@modelcontextprotocol/server";
 import { build } from "esbuild";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, truncateSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { listSessions } from "../src/core/discover.js";
 import { HistoryService } from "../src/mcp/history.js";
-import { MAX_RESPONSE_BYTES } from "../src/mcp/safety.js";
+import { MAX_RESPONSE_BYTES, MAX_TRANSCRIPT_BYTES } from "../src/mcp/safety.js";
 import { createMcpServer } from "../src/mcp/server.js";
 import { mcpFixture } from "./mcp-fixtures.js";
+import { prompt } from "./helpers.js";
 
 const temporary = mkdtempSync(join(tmpdir(), "runlens-mcp-protocol-"));
 const cli = join(temporary, "cli.mjs");
@@ -37,7 +38,7 @@ function parsed(result: { content?: unknown }) {
   return JSON.parse(content.find((item) => item.type === "text")!.text!);
 }
 
-async function connectedClient(extra: string[] = []) {
+async function connectedClient(extra: string[] = [], history = fixture) {
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [
@@ -46,9 +47,9 @@ async function connectedClient(extra: string[] = []) {
       "--project",
       "/work/demo",
       "--dir",
-      fixture.root,
+      history.root,
       "--codex-dir",
-      fixture.codex,
+      history.codex,
       ...extra,
     ],
     cwd: resolve("."),
@@ -148,6 +149,55 @@ describe("Runlens MCP stdio", () => {
       expect(JSON.stringify([invalid, missing, scope])).not.toContain("OTHER_PROJECT_PRIVATE_ONLY");
     } finally {
       await client.close();
+    }
+  });
+
+  it("returns successful partial data for an oversized transcript and accepts search and summary cursors", async () => {
+    const history = mcpFixture();
+    const oversized = history.writeSession("oversized", [
+      prompt("timeout in an oversized session"),
+    ]);
+    truncateSync(oversized, MAX_TRANSCRIPT_BYTES + 1);
+    const newest = new Date(Date.now() + 60_000);
+    utimesSync(oversized, newest, newest);
+    const { client } = await connectedClient([], history);
+    try {
+      const first = await client.callTool({
+        name: "search_sessions",
+        arguments: { query: "timeout", limit: 1 },
+      });
+      const data = parsed(first);
+      expect(first.isError).toBeUndefined();
+      expect(data).toMatchObject({
+        partial: true,
+        skipped: [{ session_id: "oversized", reason: "transcript_size" }],
+      });
+      expect(data.next_cursor).toEqual(expect.any(String));
+      const second = await client.callTool({
+        name: "search_sessions",
+        arguments: { query: "timeout", cursor: data.next_cursor, limit: 1 },
+      });
+      expect(second.isError).toBeUndefined();
+      expect(
+        new Set([...data.results, ...parsed(second).results].map((row) => row.session_id)).size,
+      ).toBe(2);
+      const summary = parsed(
+        await client.callTool({
+          name: "session_summary",
+          arguments: { id: "earlier-claude", limit: 1 },
+        }),
+      );
+      const next = parsed(
+        await client.callTool({
+          name: "session_summary",
+          arguments: { id: "earlier-claude", cursor: summary.next_cursor, limit: 1 },
+        }),
+      );
+      expect(next.turns[0].asked).toBe("What should we do next?");
+      expect(next.next_cursor).toBeNull();
+    } finally {
+      await client.close();
+      rmSync(history.root, { recursive: true, force: true });
     }
   });
 

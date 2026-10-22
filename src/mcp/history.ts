@@ -1,17 +1,14 @@
-import { stat } from "node:fs/promises";
 import type { Listing } from "../core/discover.js";
-import { ownEvents, type Event } from "../core/events.js";
+import type { Event } from "../core/events.js";
 import { buildTurns } from "../core/tree.js";
 import type { SessionSummary, ToolStep, Turn } from "../core/types.js";
 import type { SessionFile } from "../sources/types.js";
+import { HistoryPagination } from "./pagination.js";
+import { ScanBudget, type ScanPause, type ScanRecord } from "./scan.js";
 import {
   excerpt,
   HistoryError,
-  historyPage,
   maskSecrets,
-  MAX_SCAN_BYTES,
-  MAX_SCAN_EVENTS,
-  MAX_TRANSCRIPT_BYTES,
   requestedScope,
   scopeListing,
   type HistoryPolicy,
@@ -21,10 +18,13 @@ interface PageRequest {
   project?: string;
   offset?: number;
   limit?: number;
+  cursor?: string;
 }
 
 /** A separate projection: viewer search is deliberately broader and must not feed MCP. */
 export class HistoryService {
+  private readonly pagination = new HistoryPagination();
+
   constructor(
     private readonly list: (signal?: AbortSignal) => Promise<Listing>,
     private readonly policy: HistoryPolicy,
@@ -35,6 +35,10 @@ export class HistoryService {
 
   get defaultProject(): string {
     return requestedScope(this.policy);
+  }
+
+  close() {
+    this.pagination.close();
   }
 
   private async scoped(project: string | undefined, signal?: AbortSignal) {
@@ -50,77 +54,51 @@ export class HistoryService {
     if (normalized.length < 2 || normalized.length > 200)
       throw new HistoryError("invalid_query", "Query must contain between 2 and 200 characters.");
     const { offset, limit } = pageRequest(request);
+    const directory = requestedScope(this.policy, request.project);
+    const key = JSON.stringify(["search", directory, normalized]);
+    if (request.cursor) return this.pagination.resume(request.cursor, key, limit, signal);
     const { listing, project } = await this.scoped(request.project, signal);
-    const budget = new ScanBudget(signal);
-    const matches = [];
-    let matched = 0;
-    let hasMore = false;
-    for (const session of listing.sessions) {
-      signal?.throwIfAborted();
-      const entry = listing.files.get(session.id);
-      if (!entry) continue;
-      let match: { excerpt: string; origin: string; at: string } | undefined;
-      for await (const { source, events } of projectedFiles(entry, budget)) {
-        for await (const event of events) {
-          // Search only the same masked projection that can be returned. No secret oracle.
-          if (event.type !== "prompt" && event.type !== "text" && event.type !== "interjection")
-            continue;
-          const index = event.text.toLowerCase().indexOf(normalized);
-          if (index < 0) continue;
-          match = {
-            excerpt: event.text.slice(Math.max(0, index - 65), index + normalized.length + 130),
-            origin: source,
-            at: safeDate(event.at),
-          };
-          break;
-        }
-        if (match) break;
-      }
-      if (!match) continue;
-      if (matched++ < offset) continue;
-      if (matches.length === limit) {
-        hasMore = true;
-        break;
-      }
-      matches.push({ ...provenance(session), ...match });
-    }
-    signal?.throwIfAborted();
-    return historyPage({ project: excerpt(project, 512) }, "results", matches, offset, hasMore);
+    const budget = new ScanBudget();
+    return this.pagination.page(
+      {
+        key,
+        base: { project: excerpt(project, 512) },
+        field: "results",
+        budget,
+        iterator: searchSessions(listing, normalized, budget),
+        offset,
+        remainingOffset: offset,
+      },
+      limit,
+      signal,
+    );
   }
 
   async summary(id: string, request: PageRequest = {}, signal?: AbortSignal) {
     if (!/^[\w-]{1,160}$/.test(id))
       throw new HistoryError("invalid_session", "Use a session ID returned by search_sessions.");
     const { offset, limit } = pageRequest(request);
+    const directory = requestedScope(this.policy, request.project);
+    const key = JSON.stringify(["summary", directory, id]);
+    if (request.cursor) return this.pagination.resume(request.cursor, key, limit, signal);
     const { listing, project } = await this.scoped(request.project, signal);
     const session = listing.sessions.find((item) => item.id === id);
     const entry = listing.files.get(id);
     if (!session || !entry)
       throw new HistoryError("session_not_found", "Session not found in the selected project.");
-    const budget = new ScanBudget(signal);
-    const turns = [];
-    let position = 0;
-    let hasMore = false;
-    for await (const { source, events } of projectedFiles(entry, budget)) {
-      const projected: Event[] = [];
-      for await (const event of events) projected.push(event);
-      for (const turn of buildTurns(projected).turns) {
-        if (position++ < offset) continue;
-        if (turns.length === limit) {
-          hasMore = true;
-          break;
-        }
-        turns.push({ origin: source, ...summarizeTurn(turn) });
-      }
-      if (hasMore) break;
-    }
-    signal?.throwIfAborted();
-    return historyPage(
-      { ...provenance(session), project: excerpt(project, 512) },
-      "turns",
-      turns,
-      offset,
-      hasMore,
+    const budget = new ScanBudget();
+    return this.pagination.page(
+      {
+        key,
+        base: { ...provenance(session), project: excerpt(project, 512) },
+        field: "turns",
+        budget,
+        iterator: summaryTurns(entry, budget),
+        offset,
+        remainingOffset: offset,
+      },
+      limit,
+      signal,
     );
   }
 }
@@ -134,9 +112,14 @@ function pageRequest(request: PageRequest) {
     offset > 100_000 ||
     !Number.isInteger(limit) ||
     limit < 1 ||
-    limit > 5
+    limit > 5 ||
+    (request.cursor !== undefined &&
+      (!/^[\da-f-]{36}$/.test(request.cursor) || request.offset !== undefined))
   )
-    throw new HistoryError("invalid_page", "Offset must be 0–100000 and limit must be 1–5.");
+    throw new HistoryError(
+      "invalid_page",
+      "Offset must be 0–100000 and limit must be 1–5. Use cursor without offset.",
+    );
   return { offset, limit };
 }
 
@@ -154,41 +137,124 @@ function provenance(session: SessionSummary) {
   };
 }
 
-class ScanBudget {
-  private bytes = 0;
-  private events = 0;
-  constructor(readonly signal?: AbortSignal) {}
-
-  async file(file: string) {
-    this.signal?.throwIfAborted();
-    const info = await stat(file);
-    this.signal?.throwIfAborted();
-    this.bytes += info.size;
-    if (!info.isFile() || info.size > MAX_TRANSCRIPT_BYTES || this.bytes > MAX_SCAN_BYTES)
-      throw new HistoryError(
-        "scan_limit",
-        "History scan limit reached. Narrow the project or use a known session ID.",
-      );
-  }
-
-  event() {
-    this.signal?.throwIfAborted();
-    if (++this.events > MAX_SCAN_EVENTS)
-      throw new HistoryError(
-        "scan_limit",
-        "History event limit reached. Narrow the project or use a known session ID.",
-      );
+async function* searchSessions(
+  listing: Listing,
+  query: string,
+  budget: ScanBudget,
+): AsyncGenerator<ScanRecord> {
+  for (const [index, session] of listing.sessions.entries()) {
+    budget.signal.throwIfAborted();
+    const entry = listing.files.get(session.id);
+    if (!entry) continue;
+    let match: { excerpt: string; origin: string; at: string } | undefined;
+    for await (const file of projectedFiles(entry, budget)) {
+      if (file.kind === "pause") {
+        yield file;
+        continue;
+      }
+      for await (const event of file.events) {
+        if ("kind" in event) {
+          yield event;
+          continue;
+        }
+        // Match the same masked projection that can be returned. No secret oracle.
+        if (event.type !== "prompt" && event.type !== "text" && event.type !== "interjection")
+          continue;
+        const position = event.text.toLowerCase().indexOf(query);
+        if (position < 0) continue;
+        match = {
+          excerpt: event.text.slice(Math.max(0, position - 65), position + query.length + 130),
+          origin: file.source,
+          at: safeDate(event.at),
+        };
+        break;
+      }
+      if (match) break;
+    }
+    budget.progress.sessions_completed++;
+    if (match)
+      yield {
+        kind: "item",
+        value: { ...provenance(session), ...match },
+        last: index === listing.sessions.length - 1,
+      };
   }
 }
 
-async function* projectedFiles(entry: SessionFile, budget: ScanBudget) {
+async function* summaryTurns(entry: SessionFile, budget: ScanBudget): AsyncGenerator<ScanRecord> {
+  for await (const file of projectedFiles(entry, budget)) {
+    if (file.kind === "pause") {
+      yield file;
+      continue;
+    }
+    let projected: Event[] = [];
+    const pendingCalls = new Set<string>();
+    for await (const event of file.events) {
+      if ("kind" in event) {
+        yield event;
+        continue;
+      }
+      // Wait for outstanding calls so results crossing a prompt still belong to their call.
+      if (event.type === "tool_use") pendingCalls.add(event.id);
+      if (event.type === "tool_result") pendingCalls.delete(event.toolUseId);
+      if (event.type === "prompt" && projected.length && !pendingCalls.size) {
+        const turns = buildTurns(projected).turns;
+        projected = [event];
+        for (const turn of turns)
+          yield {
+            kind: "item",
+            value: { origin: file.source, ...summarizeTurn(turn) },
+            last: false,
+          };
+      } else projected.push(event);
+    }
+    if (file.last) budget.progress.sessions_completed++;
+    const turns = buildTurns(projected).turns;
+    for (const [index, turn] of turns.entries())
+      yield {
+        kind: "item",
+        value: { origin: file.source, ...summarizeTurn(turn) },
+        last: file.last && index === turns.length - 1,
+      };
+  }
+  // A skipped final file may leave no turn on which to report completion.
+  budget.progress.sessions_completed = 1;
+}
+
+async function* projectedFiles(
+  entry: SessionFile,
+  budget: ScanBudget,
+): AsyncGenerator<
+  | ScanPause
+  | {
+      kind: "file";
+      source: string;
+      last: boolean;
+      events: AsyncGenerator<Event | ScanPause>;
+    }
+> {
+  const files = [];
+  for await (const file of entry.reader.searchFiles(entry.file)) {
+    budget.signal.throwIfAborted();
+    files.push(file);
+  }
   const recorded = new Map<string, Event[]>();
-  for await (const { file, source, inheritedFile } of entry.reader.searchFiles(entry.file)) {
-    await budget.file(file);
+  const parents = new Set(files.map((file) => file.inheritedFile));
+  for (const [index, { file, source, inheritedFile }] of files.entries()) {
     const parent = inheritedFile ? recorded.get(inheritedFile) : undefined;
-    const saved: Event[] = [];
-    recorded.set(file, saved);
-    yield { source, events: projectedEvents(entry, file, budget, saved, parent) };
+    if (inheritedFile && !parent) {
+      budget.skip(entry.id, source, "inherited_transcript_unavailable");
+      continue;
+    }
+    if (!(yield* budget.file(file, entry.id, source))) continue;
+    const saved = parents.has(file) ? ([] as Event[]) : undefined;
+    if (saved) recorded.set(file, saved);
+    yield {
+      kind: "file",
+      source,
+      last: index === files.length - 1,
+      events: projectedEvents(entry, file, budget, saved, parent),
+    };
   }
 }
 
@@ -196,19 +262,37 @@ async function* projectedEvents(
   entry: SessionFile,
   file: string,
   budget: ScanBudget,
-  saved: Event[],
+  saved: Event[] | undefined,
   parent?: Event[],
-) {
-  for await (const event of entry.reader.readEvents(file, budget.signal)) {
-    budget.event();
-    const safe = projectEvent(event);
-    if (safe) {
-      saved.push(safe);
-      if (!parent) yield safe;
+): AsyncGenerator<Event | ScanPause> {
+  let prefix = 0;
+  let replay = !!parent;
+  let firstOwn = true;
+  const inheritedCalls = new Set(
+    parent?.filter((event) => event.type === "tool_use").map((event) => event.id),
+  );
+  for await (const event of budget.read(entry.reader.readEvents(file, budget.signal))) {
+    if ("kind" in event) {
+      yield event;
+      continue;
     }
+    const safe = projectEvent(event);
+    if (!safe) continue;
+    saved?.push(safe);
+    // Stream the viewer's ownEvents rule without buffering the entire fork first.
+    if (replay && JSON.stringify(safe) === JSON.stringify(parent?.[prefix])) {
+      prefix++;
+      continue;
+    }
+    replay = false;
+    if (
+      (safe.type === "tool_use" && inheritedCalls.has(safe.id)) ||
+      (safe.type === "tool_result" && inheritedCalls.has(safe.toolUseId))
+    )
+      continue;
+    yield firstOwn && parent && safe.type === "interjection" ? { ...safe, type: "prompt" } : safe;
+    firstOwn = false;
   }
-  // Reuse the viewer's fork rule with scoped, masked events; never open another file here.
-  if (parent) yield* ownEvents(saved, parent);
 }
 
 function projectEvent(event: Event): Event | undefined {
