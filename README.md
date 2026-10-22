@@ -73,11 +73,74 @@ Questions and suggestions are welcome in issues; code changes are welcome throug
 ## Let agents consult earlier work
 
 The source preview includes a read-only MCP server with `search_sessions` and `session_summary`
-for Claude Code and Codex history. It defaults to one directory project and returns bounded,
-masked historical excerpts and recorded facts. MCP responses go to your connected agent client
-and may reach its model provider. This is not published to npm yet.
+for Claude Code and Codex history. Its connection instructions tell agents when to search earlier
+decisions or fixes, then inspect a matching session. Your agent decides when to call the tools;
+you can ask it directly. The client starts the server, so the browser viewer can stay closed.
 
-[Build it and configure Claude Code or Codex →](docs/mcp.md)
+**MCP is not published to npm yet.** After a release containing MCP ships, run one of these commands
+from your project folder. No source checkout, build step, or `RUNLENS_CLI` variable will be needed.
+These commands do not work with the current npm release.
+
+**Claude Code** (private configuration for this project):
+
+```sh
+claude mcp add --scope local --transport stdio runlens -- \
+  npx -y runlens@latest mcp --project "$PWD"
+```
+
+**Codex**:
+
+```sh
+codex mcp add runlens -- \
+  npx -y runlens@latest mcp --project "$PWD"
+```
+
+<details>
+<summary>Try the unpublished source preview today</summary>
+
+For developer testing before release, first build this checkout and capture
+its CLI location in a macOS/Linux shell:
+
+```sh
+npm install
+npm run check
+export RUNLENS_CLI="$PWD/dist/cli.js"
+```
+
+In the **same terminal**, change into the project whose history you want, then register with one
+of these clients:
+
+**Claude Code** (private configuration for this project):
+
+```sh
+claude mcp add --scope local --transport stdio runlens -- \
+  node "$RUNLENS_CLI" mcp --project "$PWD"
+claude mcp list
+```
+
+**Codex**:
+
+```sh
+codex mcp add runlens -- \
+  node "$RUNLENS_CLI" mcp --project "$PWD"
+codex mcp get runlens --json
+```
+
+Keep the built checkout at its saved location. Choose one setup per client; review/update an existing
+`runlens` registration or use a distinct server name instead of adding a duplicate.
+
+</details>
+
+Reconnect the client. Try: “Search Runlens for our earlier search cancellation fix. Show the session
+and date, then check the recorded approach against the current code.”
+
+`"$PWD"` captures your current folder during registration; you do not need to type its path. Access
+stays fixed when you change folders. Use a distinct server name for another project or explicitly
+grant it with `--allow-project` and reconnect. Agents cannot grant themselves access, and remembered
+or interactive project approvals are not implemented.
+MCP responses contain bounded, masked history and may reach your agent's model provider.
+
+[Full setup, future npm commands, permissions, and limits →](docs/mcp.md)
 
 ## Contribute
 

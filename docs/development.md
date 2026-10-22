@@ -82,6 +82,9 @@ the notices. The client SDK is a development dependency for synthetic protocol c
 and streaming readers accept cancellation signals. `npm run check` includes the MCP contract and
 protocol tests without starting an HTTP server; protocol tests build their own temporary CLI.
 See [MCP setup](mcp.md) for scopes, response limits and client verification boundaries.
+MCP initialization instructions identify the configured default project and explain when to search,
+how to inspect a result, and why changing the client's folder cannot change startup access. Keep
+tool descriptions consistent with that behavior; protocol tests check the guidance clients receive.
 
 The public landing page is a separate static site in `website/`. Use `npm run site:preview`
 for port 8741 or `npm run site:build` for `website-dist/`. It is not bundled into the CLI.

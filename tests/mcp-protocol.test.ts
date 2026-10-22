@@ -68,8 +68,17 @@ describe("Runlens MCP stdio", () => {
     const original = readFileSync(fixture.claude, "utf8");
     const { client, errors } = await connectedClient();
     try {
+      const instructions = client.getInstructions();
+      expect(instructions).toContain('configured default project is "/work/demo"');
+      expect(instructions).toContain("Tool arguments cannot grant access");
+      expect(instructions).toContain("It stays fixed when the client changes folders");
+      expect(instructions).toContain("search_sessions");
+      expect(instructions).toContain("session_summary");
+      expect(instructions).toContain("model provider");
       const { tools } = await client.listTools();
       expect(tools.map((tool) => tool.name)).toEqual(["search_sessions", "session_summary"]);
+      expect(tools[0].description).toContain("past decisions");
+      expect(tools[1].description).toContain("same project");
       expect(
         tools.every(
           (tool) => tool.annotations?.readOnlyHint && tool.annotations?.destructiveHint === false,

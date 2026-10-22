@@ -1,5 +1,33 @@
 # Changelog
 
+### 2026-10-22 — Interactive MCP walkthrough
+
+- Replace the static MCP question with a selectable search, recorded-summary, and verification
+  walkthrough. Add next/replay navigation and a copyable question with agent-specific copy feedback.
+- Use matches and recorded facts verified against the synthetic MCP test history. Label the demo
+  and distinguish suggested current-code checks from recorded outcomes. Read no history from the website.
+- Preserve the monochrome style and existing trace animations. Keep all stages readable without
+  JavaScript, use native keyboard controls, and respect reduced motion for stage transitions.
+- Rename the navigation's “What’s next” link to “MCP” and the hero preview's matching label to
+  “For your agents”; keep a direct MCP setup link for registration commands.
+
+### 2026-10-22 — MCP connection guidance and website setup
+
+- Teach connected agents when to search prior work, how to inspect a matching session, and how to
+  handle empty results and historical instructions. Identify the configured default project during
+  initialization; explain fixed startup scopes, explicit grants, and model-provider exposure.
+- Add a dedicated landing-page MCP setup section with copyable Claude Code/Codex source-preview
+  and future npm commands, optional developer build instructions, a practical question, and local clipboard feedback. Match the
+  existing monochrome design and preserve the hero/footer trace animations.
+- Document registration from the user's project with `"$PWD"`, private local Claude configuration,
+  and the distinction between available source setup and npm commands for after release. Add the
+  same setup to README and the MCP guide. No automatic approval or discovery behavior is claimed.
+- Extend the real-client protocol check to verify initialization and tool guidance.
+- Validation: all 126 server-free tests, formatting, types, and both builds passed. The user ran
+  the browser inspector; final desktop/tablet/mobile screenshots were reviewed with zero failures
+  and the two existing type-scale/video warnings. All seven copy targets and local anchors resolve;
+  displayed commands pass shell syntax checks. No release, deployment, or personal registration.
+
 ### 2026-10-22 — Read-only MCP source preview
 
 - Add `runlens mcp` stdio mode with `search_sessions` and `session_summary` over the shared Claude

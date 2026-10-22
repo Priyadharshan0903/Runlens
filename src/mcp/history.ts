@@ -33,6 +33,10 @@ export class HistoryService {
     policy.allowProjects?.forEach((project) => requestedScope(policy, project));
   }
 
+  get defaultProject(): string {
+    return requestedScope(this.policy);
+  }
+
   private async scoped(project: string | undefined, signal?: AbortSignal) {
     signal?.throwIfAborted();
     const directory = requestedScope(this.policy, project);

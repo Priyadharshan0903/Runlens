@@ -3,6 +3,7 @@ import { initializeFooterTraces } from "./footer-traces";
 import { initializeFooterLayout } from "./footer-layout";
 import { initializeScreenshotPreview } from "./screenshot-preview";
 import { initializeHeroTraces } from "./hero-traces";
+import { initializeMcpWalkthrough } from "./mcp-walkthrough";
 
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
@@ -105,16 +106,21 @@ const copyStatus = document.querySelector("#copy-status");
 const copyTimers = new WeakMap<HTMLButtonElement, number>();
 document.querySelectorAll<HTMLButtonElement>("[data-copy]").forEach((button) => {
   button.hidden = false;
+  const original = button.innerHTML;
   button.addEventListener("click", async () => {
     const code = document.getElementById(button.dataset.copy ?? "");
     if (!code) return;
-    const original = 'Copy <span aria-hidden="true">↗</span>';
+    const status = button.closest("section")?.querySelector("[data-copy-status]") ?? copyStatus;
+    const isPrompt = button.dataset.copyType === "prompt";
     try {
-      await navigator.clipboard.writeText(code.textContent ?? "");
+      const text = code.textContent ?? "";
+      await navigator.clipboard.writeText(isPrompt ? text.replace(/\s+/g, " ").trim() : text);
       window.clearTimeout(copyTimers.get(button));
       button.textContent = "Copied";
-      if (copyStatus)
-        copyStatus.textContent = "Setup commands copied. Paste them into your terminal.";
+      if (status)
+        status.textContent = isPrompt
+          ? "Question copied. Paste it into your connected agent."
+          : "Setup commands copied. Paste them into your terminal.";
       copyTimers.set(
         button,
         window.setTimeout(() => {
@@ -127,8 +133,7 @@ document.querySelectorAll<HTMLButtonElement>("[data-copy]").forEach((button) => 
       range.selectNodeContents(code);
       selection?.removeAllRanges();
       selection?.addRange(range);
-      if (copyStatus)
-        copyStatus.textContent = "Select and copy the highlighted command with Ctrl+C or ⌘C.";
+      if (status) status.textContent = "Select and copy the highlighted text with Ctrl+C or ⌘C.";
     }
   });
 });
@@ -164,5 +169,6 @@ reducedMotion.addEventListener("change", () => {
 
 initializeScreenshotPreview();
 initializeHeroTraces(reducedMotion);
+initializeMcpWalkthrough(reducedMotion);
 initializeFooterLayout();
 initializeFooterTraces(reducedMotion);
