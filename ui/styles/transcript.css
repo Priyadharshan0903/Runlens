@@ -435,21 +435,10 @@
   line-height: 1.65;
   color: var(--ink);
   overflow-wrap: anywhere;
-  position: relative;
 }
 .md.clamped {
   max-height: 360px;
   overflow: hidden;
-}
-.md.clamped::after {
-  content: "";
-  position: absolute;
-  inset: auto 0 0 0;
-  height: 90px;
-  display: none;
-}
-.agent .md.clamped::after {
-  display: none;
 }
 .md > :first-child {
   margin-top: 0;

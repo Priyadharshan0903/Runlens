@@ -115,6 +115,11 @@ reading width rather than the window width. Session metadata and notes stay in t
 Search inside a session, expand or collapse tool details, copy the session ID, and export
 Markdown or JSON. JSON exports include your session annotations; Markdown exports include your notes.
 
+A single button at the bottom-right of a session moves to the opposite end of the page. It shows
+**Move to bottom** in the upper half and **Move to top** in the lower half. It hides when the content
+fits without scrolling, updates when tabs or expanded content change height, and respects reduced
+motion. It moves the session page, leaving nested command outputs and code previews independent.
+
 **Live refresh** polls the selected session every 5 seconds and the library every 15 seconds.
 It keeps the existing transcript on screen while refreshing, pauses polling when the browser tab
 is hidden, and avoids overlapping requests for the selected session. It is polling, not streaming.

@@ -88,6 +88,9 @@ Mixed sidebar rows identify the agent; library rows pair agent and project in on
 subagent counts keep their own clearly named column. Both themes use existing tokens. On narrow
 screens, the existing menu holds the same agent/grouping controls with 44px targets.
 
-No sample sessions or invented figures ship in the UI. Synthetic records live only in tests. Visual
-verification at desktop, tablet, and phone widths is left to the user, per the repository's testing
-instructions; source lint and server-free checks do not establish browser layout correctness.
+No sample sessions or invented figures ship in the UI. Tests and browser verification use synthetic
+records. User-assisted Chrome inspection covered the library, timeline, and Changes view in both
+themes, with zero measured failures. Interaction checks covered agent filtering, Escape with focus
+inside the picker, Date grouping, command details, original change records, and reduced motion.
+Laptop and desktop use is the product priority; narrow-width checks were additional coverage.
+Source lint and server-free tests alone do not establish browser layout correctness.

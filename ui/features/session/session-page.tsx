@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 import type { Session } from "../../../src/core/types.js";
 import { between, formatClock, formatDuration, plural, projectName } from "../../shared/format.js";
 import { SessionInspector } from "./inspector.js";
+import { SessionScrollControl } from "./session-scroll-control.js";
 import type { SessionMeta } from "../../shared/use-preferences.js";
 import { useResource } from "../../shared/use-resource.js";
 import { AgentIdentity } from "../../shared/agent-identity.js";
@@ -521,6 +522,7 @@ function SessionDetail({
               onMeta={onMeta}
             />
           </div>
+          <SessionScrollControl />
         </article>
       </Expansion.Provider>
     </Target.Provider>

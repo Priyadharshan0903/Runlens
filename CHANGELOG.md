@@ -1,5 +1,31 @@
 # Changelog
 
+### 2026-10-22 — Session jump control and branch cleanup
+
+- Added one bottom-right session button that switches between moving to the top and bottom based
+  on which half is being read. Hide it when the page fits; update it as tabs, expanded details,
+  live content, or window size change. Respect reduced motion and keep nested code scrolling separate.
+- Isolated scroll measurement in one small component, with a passive listener, frame scheduling,
+  resize observation, and cleanup. Scroll position does not rerender the transcript. Reserve bottom
+  reading space for the control; preserve keyboard focus on its single button.
+- Consolidated duplicate Claude preview tests into the adapter tests. Removed unused project-colour
+  and date-formatting helpers, plus Markdown fade pseudo-elements that were permanently hidden.
+- Validation: formatting, types, all 107 tests, and the production build passed. User-assisted
+  browser checks passed at 1440px and 1280px in both themes, covering button visibility and direction,
+  focus, independent nested output scrolling, short content, resizing, and route cleanup.
+
+### 2026-10-22 — Complete interface verification
+
+- Verified library, timeline, and Changes views in both themes using user-assisted Chrome captures.
+  All six inspection runs passed at 1440, 768, and 390px. Reviewed desktop renders; remaining
+  warnings concern compact code/metadata and sparse status colours in the activity strip.
+- Passed focused interaction checks in both themes, including agent filtering, Escape, Date
+  grouping, expanded command details, original change records, and live/reduced-motion status.
+  Corrected the capture harness to focus the picker before sending Escape; no application change
+  was needed for that assertion.
+- Recorded laptop and desktop as the primary UI audience. Phone-specific polish is outside current
+  release criteria. Existing responsive behavior is retained.
+
 ### 2026-10-22 — Readable recorded file changes
 
 - Replaced raw JSON as the default Changes view with per-file recorded patches or file content.
@@ -19,7 +45,7 @@
 - Constrain failed-call previews and wrap them to two lines on phones, preserving the reading margin.
   Full error output remains available by expanding the call.
 - Reviewed the taste inspector's library/session reports and screenshots in both themes at 1440,
-  768, and 390px. The initial phone error-spacing failure is addressed; browser reinspection is pending.
+  768, and 390px. Subsequent inspection passed after the error-spacing fix.
 
 ### 2026-10-22 — Codex inspection command labels
 

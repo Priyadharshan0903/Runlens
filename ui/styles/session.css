@@ -1,3 +1,17 @@
+.session-scroll-control {
+  position: absolute;
+  right: 24px;
+  bottom: 16px;
+  z-index: 5;
+}
+.session-scroll-control .button {
+  min-height: 38px;
+  background: var(--bg);
+}
+.has-session .main {
+  padding-bottom: 84px;
+}
+
 .session-kicker {
   display: flex;
   gap: 10px;

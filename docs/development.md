@@ -34,16 +34,17 @@ The UI uses Preact and follows the same state model as React: store user choices
 results, then derive what the screen displays. A smaller state count alone is not a design goal;
 clear ownership and consistent transitions are.
 
-| Owner                                        | Responsibility                                                                                       |
-| -------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `ui/app/app.tsx`                             | URL navigation, workspace layout, agent scope, and shared search input.                              |
-| `ui/features/library/library.tsx`            | Library project/date filters and sorting; each result set owns its pagination.                       |
-| `ui/features/library/session-navigation.tsx` | Project expansion and row limits; grouping follows the saved preference.                             |
-| `ui/features/library/use-session-search.ts`  | One transcript search request, enabled on the library route and shared with navigation.              |
-| `ui/features/session/session-page.tsx`       | The selected session request and session-view navigation. Changing session identity resets its view. |
-| `ui/features/session/inspector.tsx`          | A local notes draft and clipboard feedback. Notes persist after a 400 ms pause or on blur.           |
-| `ui/shared/use-resource.ts`                  | One request snapshot, cancellation, debounce, refresh, and optional polling.                         |
-| `ui/shared/use-preferences.ts`               | Browser-local annotations and preferences, with stable update callbacks.                             |
+| Owner                                            | Responsibility                                                                                            |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `ui/app/app.tsx`                                 | URL navigation, workspace layout, agent scope, and shared search input.                                   |
+| `ui/features/library/library.tsx`                | Library project/date filters and sorting; each result set owns its pagination.                            |
+| `ui/features/library/session-navigation.tsx`     | Project expansion and row limits; grouping follows the saved preference.                                  |
+| `ui/features/library/use-session-search.ts`      | One transcript search request, enabled on the library route and shared with navigation.                   |
+| `ui/features/session/session-page.tsx`           | The selected session request and session-view navigation. Changing session identity resets its view.      |
+| `ui/features/session/inspector.tsx`              | A local notes draft and clipboard feedback. Notes persist after a 400 ms pause or on blur.                |
+| `ui/features/session/session-scroll-control.tsx` | The page's jump direction, measured from the scroll container. Scroll updates stay inside this component. |
+| `ui/shared/use-resource.ts`                      | One request snapshot, cancellation, debounce, refresh, and optional polling.                              |
+| `ui/shared/use-preferences.ts`                   | Browser-local annotations and preferences, with stable update callbacks.                                  |
 
 Counts, matching rows, agent rosters, and file summaries are derived from source data. Expensive
 session summaries are memoized per loaded transcript. Tool inputs are indexed only when an
@@ -55,6 +56,10 @@ Prettier enforces multiline formatting, and TypeScript rejects unused locals and
 [`AGENTS.md`](../AGENTS.md) records these conventions for future contributions.
 
 ## Develop
+
+The interface targets laptop and desktop users. Prioritize session reading, keyboard navigation,
+and light/dark themes at those sizes. Existing responsive layouts remain available; phone-specific
+polish is outside the current release criteria.
 
 ```sh
 npm run check       # formatting, types, core/feature tests, production build
@@ -97,6 +102,7 @@ ui/
       use-session-search.ts shared transcript-search request
     session/
       session-page.tsx     selected-session request and view navigation
+      session-scroll-control.tsx one contextual jump button for the session scroll container
       transcript.tsx       paired human/agent turns and tool disclosures
       session-views.tsx    conversation, changes, agents, statistics, and activity
       inspector.tsx       notes editor and session details

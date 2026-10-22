@@ -403,6 +403,7 @@
   color: var(--ink);
 }
 .workspace {
+  position: relative;
   display: grid;
   grid-template-rows: 56px minmax(0, 1fr);
   min-width: 0;

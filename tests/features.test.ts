@@ -6,7 +6,6 @@ import { parseRecords } from "../src/sources/claude/parse.js";
 import { searchSessions } from "../src/core/search.js";
 import { buildTurns } from "../src/core/tree.js";
 import { formatCost } from "../ui/shared/format.js";
-import { describeTool } from "../src/sources/claude/tools.js";
 import { changePreview } from "../ui/features/session/change-preview.js";
 import {
   allCalls,
@@ -67,25 +66,6 @@ describe("recorded change previews", () => {
       { kind: "added", text: "+first" },
       { kind: "added", text: "+second" },
     ]);
-  });
-
-  it("normalizes Claude replacements, writes and multi-edits for the shared view", () => {
-    expect(
-      describeTool("Edit", { file_path: "a.ts", old_string: "before", new_string: "after" }).action
-        .files?.[0].preview,
-    ).toEqual({ kind: "diff", text: "-before\n+after" });
-    expect(
-      describeTool("Write", { file_path: "a.ts", content: "line\nnext" }).action.files?.[0].preview,
-    ).toEqual({ kind: "content", text: "line\nnext" });
-    expect(
-      describeTool("MultiEdit", {
-        file_path: "a.ts",
-        edits: [
-          { old_string: "one", new_string: "two" },
-          { old_string: "three", new_string: "four" },
-        ],
-      }).action.files?.[0].preview,
-    ).toEqual({ kind: "diff", text: "-one\n+two\n@@\n-three\n+four" });
   });
 });
 

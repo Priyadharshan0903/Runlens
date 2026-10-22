@@ -30,6 +30,9 @@ to extend. Preserve behavior during a refactor and explain any deliberate behavi
 
 ## Verification
 
+Laptop and desktop users are the primary UI audience. Prioritize those layouts, keyboard use,
+and both themes. Phone-specific polish is not a release requirement unless explicitly requested.
+
 Use `npm run check` after a coherent change. It checks formatting, types, core/feature tests,
 and the production build without starting an HTTP server. Add focused tests for behavior changes.
 Do not repeat all checks unless a change or failure justifies it. Browser and live-server checks
