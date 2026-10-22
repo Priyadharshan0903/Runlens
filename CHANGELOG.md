@@ -1,5 +1,15 @@
 # Changelog
 
+### 2026-10-22 — Manual GitHub Pages deployment
+
+- Add a separate `Deploy website to GitHub Pages` workflow triggered only by manual dispatch.
+  Check the selected commit, build the landing page, and upload only `website-dist/` before deploying.
+- Pin GitHub actions to commit hashes, scope Pages/OIDC write permissions to the deployment job,
+  and serialize deployments without cancelling an active run.
+- Document the one-time Pages source setting and manual launch from the Actions tab.
+- Validation: Actionlint passed, all 107 server-free tests and both builds passed, and 23 static
+  asset/link references resolved under the repository's `/Runlens/` path. No deployment was triggered.
+
 ### 2026-10-22 — Quiet hero trace animation
 
 - Introduce the footer's trace motif in the hero with three paths and slower, fainter packets

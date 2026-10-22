@@ -20,12 +20,35 @@ npm run site:build
 This writes a self-contained static website to `website-dist/`, including the HTML, bundled
 CSS/JavaScript, local Geist fonts, favicon, demo screenshots, and license notices. All asset links
 are relative so the output can be hosted below a GitHub Pages repository path. The website stays
-out of `dist/` and the npm package. No deployment workflow is added yet. A later GitHub Actions
-workflow can run `npm ci`, `npm run check`, and `npm run site:build`, then publish `website-dist/`.
+out of `dist/` and the npm package. The separate, manually triggered GitHub Pages workflow
+publishes only `website-dist/`.
 
 Screenshot filenames include their content hash. HTML and interactive screenshot choices use the
 same generated paths; changing an image creates a fresh URL. The stylesheet, script, and icon also
 carry a build version so updated previews do not depend on reusing cached branding or images.
+
+## Deploy to GitHub Pages
+
+The workflow is [Deploy website to GitHub Pages](../.github/workflows/deploy-pages.yml).
+It runs only through `workflow_dispatch`; pushes, merges, and npm releases do not deploy the site.
+
+1. Merge the workflow and website changes into the default branch (`master`) so GitHub shows
+   the **Run workflow** button.
+2. In the repository's **Settings → Pages → Build and deployment**, select **GitHub Actions**
+   as the source. This is a one-time setup.
+3. Open **Actions → Deploy website to GitHub Pages → Run workflow**, choose `master`, and run it.
+   The selected branch's checked-out commit supplies the website content. Other branches must
+   also satisfy any deployment rules on the `github-pages` environment.
+4. Open the URL reported by the deployment job. Without a custom domain, the expected address is
+   `https://priyadharshan0903.github.io/Runlens/`.
+
+The build job uses Node 24, `npm ci`, the full `npm run check:ci`, and `npm run site:build`.
+It uploads the static output only after checks pass. The dependent deployment job uses the
+`github-pages` environment with Pages and OIDC permissions; no personal access token or npm
+credentials are needed. Deployment runs share one concurrency group without cancelling an active
+deployment. Run the workflow again whenever you want to publish an updated site.
+
+This follows GitHub's [custom Pages workflow guidance](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages).
 
 ## Files and interactions
 

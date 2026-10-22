@@ -93,7 +93,8 @@ npm run site:preview
 ```
 
 Preview at `http://127.0.0.1:8741/`. Run `npm run site:build` to prepare `website-dist/` for
-hosting. See [website development](docs/website.md) for content, animation, and deployment notes.
+hosting. Deploy manually with the separate **Deploy website to GitHub Pages** workflow in Actions.
+See [website development](docs/website.md) for content, animation, and one-time Pages setup.
 
 ## License
 
