@@ -178,7 +178,7 @@ Transcripts and exports can include source code, command output, and secrets pri
   A tool result without an error does not establish that the overall task succeeded.
 - Elapsed session duration includes idle time between messages.
 - Compaction markers are displayed when recorded. Reconstructing missing history across separate
-  fork/resume chains is not implemented. This version does not claim full Recensa feature parity.
+  fork/resume chains is not implemented.
 
 Local transcript formats can change between agent versions. Tests use synthetic
 transcripts; coverage of the format is not a guarantee that every historical session will parse.
