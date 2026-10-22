@@ -123,6 +123,10 @@ is hidden, and avoids overlapping requests for the selected session. It is polli
 
 ## Appearance
 
+The session header shows a green dot after a successful sync. It gently pulses during refreshes
+and while Live refresh is enabled. A failed sync turns the dot red and shows “Sync failed.”
+The timestamp identifies the last successful refresh; reduced-motion settings keep the dot still.
+
 Light, dark, and system themes are available at the bottom of navigation. The saved preference is
 applied before the first paint; system mode follows operating-system changes. Fonts are bundled
 locally. The layout moves navigation and the session inspector into dismissible panels on smaller

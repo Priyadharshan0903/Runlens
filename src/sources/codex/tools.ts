@@ -9,20 +9,11 @@ export function describeTool(
   const name = rawName.split(".").at(-1) ?? rawName;
   const args = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
   if (["exec_command", "shell_command", "shell", "exec"].includes(name)) {
-    const command =
-      typeof args.cmd === "string"
-        ? args.cmd
-        : typeof args.command === "string"
-          ? args.command
-          : Array.isArray(args.command)
-            ? args.command.join(" ")
-            : typeof input === "string"
-              ? input
-              : "";
+    const command = commandText(args.cmd) ?? commandText(args.command) ?? commandText(input);
     return {
       summary:
         command
-          .split("\n")
+          ?.split("\n")
           .find((line) => line.trim())
           ?.slice(0, 200) || name,
       action: { kind: "run", verb: "Run", icon: "terminal", command },
@@ -58,7 +49,7 @@ export function describeTool(
 /** Newer Codex clients record the concrete operations executed inside an orchestration call. */
 export function completedTool(item: Record<string, unknown>, cwd?: string) {
   if (item.type === "CommandExecution") {
-    const input = { cmd: item.command, cwd: item.cwd };
+    const input = { command: item.command, cwd: item.cwd };
     return {
       name: "exec_command",
       input,
@@ -126,6 +117,44 @@ export function completedTool(item: Record<string, unknown>, cwd?: string) {
     };
   }
   return undefined;
+}
+
+/** Display a recorded shell script directly; keep argument boundaries for other invocations. */
+function commandText(value: unknown): string | undefined {
+  if (typeof value === "string") return value || undefined;
+  if (!Array.isArray(value) || !value.length || !value.every((part) => typeof part === "string"))
+    return;
+
+  const program = value[0]
+    .replace(/^.*[\\/]/, "")
+    .replace(/\.exe$/i, "")
+    .toLowerCase();
+  const shells = [
+    "sh",
+    "bash",
+    "zsh",
+    "dash",
+    "fish",
+    "ksh",
+    "csh",
+    "tcsh",
+    "pwsh",
+    "powershell",
+    "cmd",
+  ];
+  if (
+    value.length === 3 &&
+    shells.includes(program) &&
+    /^(?:-[il]*c[il]*|--command|-command|\/c)$/i.test(value[1])
+  ) {
+    return value[2] || undefined;
+  }
+
+  return value
+    .map((part) =>
+      /^[a-zA-Z0-9_@%+=:,./-]+$/.test(part) ? part : `'${part.replace(/'/g, "'\\''")}'`,
+    )
+    .join(" ");
 }
 
 /** Only explicit patch blocks count as edits; shell scripts are never guessed to be writes. */

@@ -18,7 +18,37 @@
 }
 .freshness {
   margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 11px;
+}
+.sync-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--ok);
+}
+.sync-dot[data-state="live"] {
+  animation: sync-pulse 1.8s ease-in-out infinite;
+}
+.sync-dot[data-state="error"] {
+  background: var(--fail);
+}
+@keyframes sync-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sync-dot[data-state="live"] {
+    animation: none;
+  }
 }
 .title-row {
   display: flex;

@@ -233,7 +233,7 @@ describe("Codex history", () => {
         item: {
           id: "cmd",
           type: "CommandExecution",
-          command: "npm test",
+          command: ["/bin/zsh", "-lc", "npm test"],
           exit_code: 1,
           aggregated_output: "failure in auth",
           status: "completed",
@@ -274,6 +274,8 @@ describe("Codex history", () => {
     expect(tools.map((step) => step.id)).toEqual(["cmd", "patch", "unfinished"]);
     expect(tools[0]).toMatchObject({
       summary: "npm test",
+      action: { command: "npm test" },
+      input: { command: ["/bin/zsh", "-lc", "npm test"] },
       durationMs: 500,
       result: { status: "error", output: "failure in auth" },
     });
@@ -283,6 +285,43 @@ describe("Codex history", () => {
       added: 1,
       removed: 1,
     });
+  });
+
+  it.each([
+    {
+      name: "string commands",
+      input: { cmd: "git status --short" },
+      expected: "git status --short",
+    },
+    {
+      name: "cmd argument arrays",
+      input: { cmd: ["/bin/zsh", "-lc", "git status --short"] },
+      expected: "git status --short",
+    },
+    {
+      name: "multiline shell scripts",
+      input: { command: ["/bin/bash", "-c", 'printf "%s" "$HOME"\nnpm test'] },
+      expected: 'printf "%s" "$HOME"\nnpm test',
+    },
+    {
+      name: "direct arguments",
+      input: { command: ["rg", "--glob", "*.tsx", "hello world", "ui/"] },
+      expected: "rg --glob '*.tsx' 'hello world' ui/",
+    },
+    {
+      name: "Windows shell scripts",
+      input: { command: ["C:\\Windows\\System32\\cmd.exe", "/c", "dir /b"] },
+      expected: "dir /b",
+    },
+    {
+      name: "shell positional arguments",
+      input: { command: ["bash", "-c", 'echo "$1"', "_", "two words"] },
+      expected: "bash -c 'echo \"$1\"' _ 'two words'",
+    },
+    { name: "missing commands", input: {}, expected: undefined },
+    { name: "malformed argument arrays", input: { cmd: ["zsh", 12] }, expected: undefined },
+  ])("displays $name without losing argument boundaries", ({ input, expected }) => {
+    expect(describeTool("exec_command", input).action.command).toBe(expected);
   });
 
   it("keeps a child's identity when a fork replays parent metadata and accepts recorded agent tasks", async () => {

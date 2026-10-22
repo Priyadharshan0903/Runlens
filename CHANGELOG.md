@@ -1,5 +1,18 @@
 # Changelog
 
+### 2026-10-22 — Codex commands and session sync status
+
+- Fixed empty Codex command details: completed operations record commands as argument arrays,
+  which were incorrectly passed to a string-only field. Preserve the original arguments in Input
+  and show the shell script directly for a recorded shell invocation. Quote direct arguments so
+  spaces and shell characters keep their boundaries. Unknown input remains inspectable.
+- Added a green sync dot beside the session timestamp. It pulses while refreshing or following
+  live activity, remains steady for a synced snapshot, and turns red with “Sync failed” on error.
+  The indicator derives from the existing request and live-refresh state. Reduced motion disables
+  the animation.
+- Added regression coverage for native argument arrays, multiline scripts, direct invocations,
+  Windows shell commands, positional arguments, and missing/malformed commands.
+
 ### 2026-10-22 — Agent identities and readable documentation
 
 - Added bundled Claude and OpenAI marks beside agent names in the selector, session list, library,

@@ -20,6 +20,10 @@ Use repeated `--codex-dir <path>` flags to replace Codex's default history folde
 - Match function/custom tool outputs by call ID. Missing output stays pending. Shell exit codes,
   explicit error fields, and failed completed operations determine tool failures, not prose guesses
   about whether the overall task succeeded.
+- Completed commands can be strings or argument arrays. Recorded shell invocations display their
+  script directly, while direct invocations retain quoted argument boundaries. The original array
+  stays in the normalized call input for inspection and exports. Missing command text falls back
+  to the available input instead of an empty Command field.
 - Prefer concrete completed commands, file changes, and MCP calls recorded during one enclosing
   `exec` call. Show its individual operations instead of counting the wrapper again. If no concrete
   operations are recorded, retain the original script and output. Detached operations or overlapping

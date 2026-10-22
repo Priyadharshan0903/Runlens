@@ -249,8 +249,28 @@ function SessionDetail({
               <span class="session-id" title={session.id}>
                 {session.id.replace(`${session.source.id}--`, "").slice(0, 8)}
               </span>
-              <span class="freshness">
-                {reloading ? "Refreshing…" : updatedAt ? `Synced ${formatClock(updatedAt)}` : ""}
+              <span
+                class="freshness"
+                title={
+                  refreshError
+                    ? `Couldn't sync: ${refreshError}`
+                    : live
+                      ? "Live refresh is on. New session activity is checked automatically."
+                      : "Last successful sync. Turn on Live refresh to follow new activity."
+                }
+              >
+                <span
+                  class="sync-dot"
+                  data-state={refreshError ? "error" : reloading || live ? "live" : "synced"}
+                  aria-hidden="true"
+                />
+                {refreshError
+                  ? "Sync failed"
+                  : reloading
+                    ? "Refreshing…"
+                    : updatedAt
+                      ? `${live ? "Live · " : ""}Synced ${formatClock(updatedAt)}`
+                      : ""}
               </span>
             </div>
             <div class="title-row">
