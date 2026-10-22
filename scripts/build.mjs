@@ -89,6 +89,7 @@ await build({
 });
 
 await copyFile("ui/index.html", "dist/ui/index.html");
+await copyFile("ui/assets/runlens.svg", "dist/ui/icon.svg");
 await build({
   entryPoints: ["ui/styles/index.css"],
   outfile: "dist/ui/styles.css",

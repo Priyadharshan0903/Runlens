@@ -1,3 +1,5 @@
+<img src="ui/assets/runlens.svg" width="48" height="48" alt="">
+
 # Runlens
 
 See what your coding agents actually did.

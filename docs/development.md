@@ -111,11 +111,13 @@ ui/
     use-resource.ts        GET request lifecycle
     use-preferences.ts     browser-local annotations and preferences
     icons.tsx              tool and status icon mappings
-    brand.tsx              Runlens mark
+    brand.tsx              Runlens agent mark, using the same SVG as the favicon
     agent-identity.tsx     shared agent logos and readable source labels
     format.ts              display formatting
     markdown.ts            safe transcript Markdown rendering
-  assets/brands/           vendored agent marks and their license
+  assets/
+    runlens.svg            monochrome Runlens icon; adapts to the embedding colour scheme
+    brands/                vendored agent marks and their license
   styles/
     index.css              stylesheet entry point
     base.css               fonts, themes, resets, and shared controls

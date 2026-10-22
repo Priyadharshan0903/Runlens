@@ -37,7 +37,6 @@
 }
 .brand-mark {
   flex: none;
-  color: var(--accent);
 }
 .brand-label {
   margin-left: auto;

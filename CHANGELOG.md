@@ -1,5 +1,14 @@
 # Changelog
 
+### 2026-10-22 — Monochrome agent icon
+
+- Replaced the previous Runlens mark with a simple agent face: a white face with black borders
+  and eyes in light mode, and a black face with white borders and eyes in dark mode.
+- Share one SVG between the sidebar, README, and bundled favicon. The sidebar follows the app's
+  selected theme; the favicon follows the browser's colour scheme. No new state or dependency.
+- Include the favicon in the build and isolated package asset checks.
+- Validation: formatting, types, all 107 tests, production build, and isolated package checks passed.
+
 ### 2026-10-22 — Session jump control and branch cleanup
 
 - Added one bottom-right session button that switches between moving to the top and bottom based

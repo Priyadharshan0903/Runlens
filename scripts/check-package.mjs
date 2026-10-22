@@ -68,7 +68,7 @@ try {
   }
 
   const ui = join(installed, "dist", "ui");
-  for (const asset of ["index.html", "app.js", "styles.css"]) {
+  for (const asset of ["index.html", "app.js", "styles.css", "icon.svg"]) {
     assert((await readFile(join(ui, asset))).length > 0, `Missing UI asset: ${asset}`);
   }
   const styles = await readFile(join(ui, "styles.css"), "utf8");
