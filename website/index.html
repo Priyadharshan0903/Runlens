@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#111111" />
+    <meta
+      name="description"
+      content="See what your coding agents actually did. Runlens is a free, local viewer for Claude Code and Codex sessions. Inspect tools, changes, failures, and subagents."
+    />
+    <meta property="og:title" content="Runlens — See what actually ran" />
+    <meta
+      property="og:description"
+      content="Your Claude Code and Codex history, in focus. Local, read-only, and open source. Start with npx runlens@latest."
+    />
+    <meta property="og:type" content="website" />
+    <title>Runlens — See what actually ran</title>
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./assets/main.css" />
+    <script type="module" src="./assets/main.js"></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <a class="brand" href="#" aria-label="Runlens home">
+        <img class="brand-mark" src="./icon.svg" width="34" height="34" alt="" />
+        <span>Runlens</span>
+      </a>
+      <nav aria-label="Main navigation">
+        <a href="#why">Why Runlens</a>
+        <a href="#explore">Explore</a>
+        <a href="#next">What’s next</a>
+      </nav>
+      <a class="header-action" href="#install">Get Runlens <span aria-hidden="true">↗</span></a>
+    </header>
+
+    <main id="main">
+      <section class="hero frame" aria-labelledby="hero-title">
+        <div class="hero-intro">
+          <h1 id="hero-title" data-reveal>See what<br />actually ran.</h1>
+          <div class="hero-copy">
+            <p class="lead" data-reveal>
+              Your coding agent did a lot. Runlens puts your Claude Code and Codex sessions in
+              focus. Every prompt, tool call, and recorded change. On your machine.
+            </p>
+            <a class="button primary" href="#install" data-reveal
+              >Start with one command <span aria-hidden="true">↗</span></a
+            >
+            <p class="quiet" data-reveal>Free & open source. Node.js 20+. No API key.</p>
+          </div>
+        </div>
+        <div class="hero-workspace" data-reveal>
+          <div class="workspace-tabs" aria-label="Jump to a section">
+            <a href="#explore">The whole run <span aria-hidden="true">↘</span></a>
+            <a href="#why">The useful details <span aria-hidden="true">↘</span></a>
+            <a href="#next">The next chapter <span aria-hidden="true">↘</span></a>
+          </div>
+          <figure class="hero-shot">
+            <div class="image-viewport" data-parallax>
+              <img
+                id="hero-screenshot"
+                src="./assets/session-dark.png"
+                width="1440"
+                height="1000"
+                alt="Runlens session timeline showing a prompt, a failed test, a patch, and a successful test."
+                fetchpriority="high"
+              />
+            </div>
+            <figcaption>
+              <span>Your question. The agent’s work. The full picture.</span>
+              <div class="theme-picker" role="group" aria-label="Screenshot theme" hidden>
+                <button type="button" data-theme="dark" aria-pressed="true">Dark</button>
+                <button type="button" data-theme="light" aria-pressed="false">Light</button>
+              </div>
+            </figcaption>
+          </figure>
+        </div>
+        <div class="hero-footnote">
+          <span>Built for Claude Code + Codex</span
+          ><a
+            href="https://github.com/Priyadharshan0903/Runlens"
+            target="_blank"
+            rel="noopener noreferrer"
+            >Made to be looked into <span aria-hidden="true">↗</span></a
+          >
+        </div>
+      </section>
+
+      <section id="why" class="why frame section-space" aria-labelledby="why-title">
+        <div class="section-intro">
+          <h2 id="why-title" data-reveal>Less digging.<br />More clarity.</h2>
+          <p class="lead" data-reveal>
+            Terminal history moves on. The questions stay. Find what changed, what failed, and how
+            your agent got to its answer.
+          </p>
+        </div>
+        <div class="benefit-list">
+          <article data-reveal>
+            <h3>Pick up the thread.</h3>
+            <p>
+              Search old conversations instead of retracing your steps. Browse Claude Code and Codex
+              together, then narrow by agent, project, or date.
+            </p>
+          </article>
+          <article data-reveal>
+            <h3>Look past “done.”</h3>
+            <p>
+              Open the command, read its output, and inspect the recorded patch. A final answer is
+              easier to assess when the work sits right beside it.
+            </p>
+          </article>
+          <article data-reveal>
+            <h3>Keep the context.</h3>
+            <p>
+              Follow subagent runs, pin useful sessions, and add your own notes and tags. Export
+              Markdown or JSON when you need to carry the history forward.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section id="explore" class="explore section-space" aria-labelledby="explore-title">
+        <div class="frame">
+          <div class="section-intro">
+            <h2 id="explore-title" data-reveal>A run, in focus.</h2>
+            <p class="lead" data-reveal>
+              Go from “what happened?” to the recorded details. Take a look around the viewer.
+            </p>
+          </div>
+          <div class="preview-index">
+            <div class="preview-choices" role="group" aria-label="Product screenshots" hidden>
+              <button type="button" data-preview="library-dark" aria-pressed="true">
+                <span>Find a session</span><span aria-hidden="true">↗</span
+                ><small>Search transcripts. Group by project or date.</small>
+              </button>
+              <button type="button" data-preview="session-dark" aria-pressed="false">
+                <span>Read the whole run</span><span aria-hidden="true">↗</span
+                ><small>Prompts, calls, changes, and final responses.</small>
+              </button>
+              <button type="button" data-preview="library-light" aria-pressed="false">
+                <span>Make it your workspace</span><span aria-hidden="true">↗</span
+                ><small>Pins, notes, exports, and two clear themes.</small>
+              </button>
+            </div>
+            <figure class="preview-image" data-reveal>
+              <img
+                id="feature-screenshot"
+                src="./assets/library-dark.png"
+                width="1440"
+                height="1000"
+                alt="Runlens dark session library with projects, Claude Code and Codex sessions, search, and filters."
+                loading="lazy"
+              />
+              <figcaption id="preview-caption">
+                One library for your supported agents. Demo sessions shown.
+              </figcaption>
+            </figure>
+          </div>
+          <noscript
+            ><p>
+              Browse your sessions, inspect the timeline, and choose light or dark in the local
+              viewer.
+            </p></noscript
+          >
+          <figure class="detail-picture" data-reveal>
+            <img
+              src="./assets/session-light.png"
+              width="1440"
+              height="1000"
+              alt="Detail of the light Runlens timeline: a question paired with a failed test, patch, and successful rerun."
+              loading="lazy"
+            />
+            <figcaption>
+              The details stay connected: your request, the recorded calls, and the response.
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section class="walkthrough frame section-space" aria-labelledby="walkthrough-title">
+        <div class="walkthrough-copy">
+          <h2 id="walkthrough-title" data-reveal>Follow the<br />evidence.</h2>
+          <p class="lead" data-reveal>
+            A test failed. A patch followed. Did the agent run the test again? Walk through this
+            example from our demo session.
+          </p>
+          <div class="walkthrough-steps" role="group" aria-label="Example session steps" hidden>
+            <button type="button" data-step="question" aria-pressed="true">
+              The question <span aria-hidden="true">↗</span>
+            </button>
+            <button type="button" data-step="failure" aria-pressed="false">
+              The failed call <span aria-hidden="true">↗</span>
+            </button>
+            <button type="button" data-step="change" aria-pressed="false">
+              The change <span aria-hidden="true">↗</span>
+            </button>
+            <button type="button" data-step="outcome" aria-pressed="false">
+              The outcome <span aria-hidden="true">↗</span>
+            </button>
+          </div>
+        </div>
+        <div class="trace-window" data-ui data-reveal>
+          <div class="trace-toolbar">
+            <span>Keep session search responsive</span><span>Codex · Demo</span>
+          </div>
+          <div class="trace-content" aria-live="polite" aria-atomic="true">
+            <article data-panel="question">
+              <p class="trace-label">You asked</p>
+              <p class="trace-statement">“Can we keep search responsive when I type quickly?”</p>
+              <p>
+                The timeline pairs your question with the agent’s work, so you can read the request
+                and the recorded response together.
+              </p>
+              <div class="trace-footer">Prompt → agent activity → final response</div>
+            </article>
+            <article data-panel="failure">
+              <p class="trace-label">Run · Failed</p>
+              <pre><code>npm test -- tests/features.test.ts</code></pre>
+              <p class="trace-statement">Stale search response replaced the newer query.</p>
+              <p>
+                A failed call stays connected to its place in the timeline. Open the output to
+                understand what happened.
+              </p>
+              <div class="trace-footer">Recorded tool result · 600ms</div>
+            </article>
+            <article data-panel="change">
+              <p class="trace-label">Patch · Recorded change</p>
+              <pre><code>ui/shared/use-resource.ts
+
++3 lines
+−1 line</code></pre>
+              <p>
+                The agent recorded a patch after the failure. The Changes view groups recorded file
+                operations by path and lets you inspect the original details.
+              </p>
+              <div class="trace-footer">An edit is evidence of an edit, not proof of a fix.</div>
+            </article>
+            <article data-panel="outcome">
+              <p class="trace-label">Run · Succeeded</p>
+              <pre><code>npm test -- tests/features.test.ts</code></pre>
+              <p class="trace-statement">The focused tests ran again.</p>
+              <p>
+                This session records a successful focused test run after the patch. It does not
+                establish that the entire test suite passed.
+              </p>
+              <div class="trace-footer">Recorded tool result · 700ms</div>
+            </article>
+          </div>
+          <p class="trace-note">Illustrative walkthrough of the included demo session.</p>
+        </div>
+      </section>
+
+      <section class="private-section section-space" aria-labelledby="private-title">
+        <div class="frame private-grid">
+          <div class="private-copy">
+            <h2 id="private-title" data-reveal>Your history.<br />Your machine.</h2>
+            <p class="lead" data-reveal>
+              Runlens reads the session files your agents already write. The viewer makes no model
+              calls and uploads no transcripts.
+            </p>
+            <dl>
+              <div data-reveal>
+                <dt>No API key to find.</dt>
+                <dd>
+                  Start the viewer and open the local URL. Existing supported history is discovered
+                  automatically.
+                </dd>
+              </div>
+              <div data-reveal>
+                <dt>Original files stay yours.</dt>
+                <dd>
+                  Transcripts are read-only. Notes, tags, pins, and preferences stay in this
+                  browser.
+                </dd>
+              </div>
+              <div data-reveal>
+                <dt>Open to inspection.</dt>
+                <dd>
+                  MIT licensed, with the source on GitHub. See how the readers work or help improve
+                  them.
+                </dd>
+              </div>
+            </dl>
+            <a
+              class="text-link"
+              href="https://github.com/Priyadharshan0903/Runlens"
+              target="_blank"
+              rel="noopener noreferrer"
+              >Explore the source <span aria-hidden="true">↗</span></a
+            >
+          </div>
+          <figure class="private-picture" data-reveal>
+            <img
+              src="./assets/library-light.png"
+              width="1440"
+              height="1000"
+              alt="Runlens light theme with a local session library, agent selection, project groups, and pinned sessions."
+              loading="lazy"
+            />
+            <figcaption>Light or dark. The same local workspace.</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section id="next" class="roadmap frame section-space" aria-labelledby="next-title">
+        <div class="section-intro">
+          <h2 id="next-title" data-reveal>Next: history<br />for your agents.</h2>
+          <div data-reveal>
+            <p class="lead">
+              You can inspect the past. Next, we want your agents to learn from it, too.
+            </p>
+            <p class="roadmap-disclaimer">
+              MCP support is planned. These tools are not available in the current release.
+            </p>
+          </div>
+        </div>
+        <div class="mcp-story" data-reveal>
+          <p class="mcp-question">“Have we solved this before?”</p>
+          <div class="mcp-flow">
+            <span>Today’s question</span><span aria-hidden="true">→</span><span>Runlens MCP</span
+            ><span aria-hidden="true">→</span><span>A relevant past run</span>
+          </div>
+          <p>
+            The first goal: let a Codex session find an earlier Claude run in the same project and
+            retrieve its recorded outcome and failures. Less repeated investigation. Better
+            handoffs.
+          </p>
+        </div>
+        <div class="roadmap-details">
+          <article data-reveal>
+            <h3>Search + summaries</h3>
+            <p>
+              Two planned tools: <code>search_sessions</code> for relevant past sessions, and
+              <code>session_summary</code> for recorded requests, changes, failures, and final
+              answers.
+            </p>
+            <p class="quiet">First milestone · read-only over stdio</p>
+          </article>
+          <article data-reveal>
+            <h3>Context with boundaries</h3>
+            <p>
+              Current project by default. Short, paged results with source, date, and session
+              provenance. Planned secret masking and exclusion of raw fetched web payloads, with
+              their limits documented.
+            </p>
+            <p class="quiet">Safety and response contract first</p>
+          </article>
+          <article data-reveal>
+            <h3>Setup you can trust</h3>
+            <p>
+              Tested Claude Code and Codex setup guidance is planned alongside v1. Change and
+              failure tools are later candidates; active-session awareness needs further validation.
+            </p>
+            <p class="quiet">Later ideas depend on v1 feedback</p>
+          </article>
+        </div>
+        <a
+          class="text-link"
+          href="https://github.com/Priyadharshan0903/Runlens/issues"
+          target="_blank"
+          rel="noopener noreferrer"
+          >Help shape what comes next <span aria-hidden="true">↗</span></a
+        >
+      </section>
+
+      <section id="install" class="install section-space" aria-labelledby="install-title">
+        <div class="frame">
+          <div class="section-intro">
+            <h2 id="install-title" data-reveal>One command.<br />A clearer view.</h2>
+            <p class="lead" data-reveal>
+              Open a terminal, start Runlens, and follow the local URL. Requires Node.js 20 or newer
+              and existing Claude Code or Codex history.
+            </p>
+          </div>
+          <div class="install-options">
+            <article class="install-option" data-reveal>
+              <h3>Try it now</h3>
+              <p>Run the latest release with npx.</p>
+              <div class="command-block">
+                <pre><code id="npx-command">npx runlens@latest</code></pre>
+                <button
+                  type="button"
+                  class="copy-button"
+                  data-copy="npx-command"
+                  aria-label="Copy npx setup command"
+                  hidden
+                >
+                  Copy <span aria-hidden="true">↗</span>
+                </button>
+              </div>
+            </article>
+            <article class="install-option" data-reveal>
+              <h3>Keep it around</h3>
+              <p>Install globally, then launch whenever you need it.</p>
+              <div class="command-block">
+                <pre><code id="npm-command">npm i -g runlens
+runlens</code></pre>
+                <button
+                  type="button"
+                  class="copy-button"
+                  data-copy="npm-command"
+                  aria-label="Copy global installation commands"
+                  hidden
+                >
+                  Copy <span aria-hidden="true">↗</span>
+                </button>
+              </div>
+            </article>
+          </div>
+          <p class="install-note">
+            The terminal prints your local address, usually <code>http://127.0.0.1:8740/</code>. No
+            sign-up. No API key.
+          </p>
+          <div class="download-links" data-reveal>
+            <a
+              class="button primary"
+              href="https://www.npmjs.com/package/runlens"
+              target="_blank"
+              rel="noopener noreferrer"
+              >View on npm <span aria-hidden="true">↗</span></a
+            >
+            <a
+              class="button secondary"
+              href="https://github.com/Priyadharshan0903/Runlens/releases"
+              target="_blank"
+              rel="noopener noreferrer"
+              >Download a release <span aria-hidden="true">↗</span></a
+            >
+            <a
+              class="text-link"
+              href="https://github.com/Priyadharshan0903/Runlens"
+              target="_blank"
+              rel="noopener noreferrer"
+              >GitHub repository <span aria-hidden="true">↗</span></a
+            >
+          </div>
+          <p id="copy-status" class="copy-status" role="status" aria-live="polite"></p>
+        </div>
+      </section>
+
+      <section class="faq frame section-space" aria-labelledby="faq-title">
+        <div>
+          <h2 id="faq-title" data-reveal>A few details.</h2>
+          <p class="lead" data-reveal>Before you open your first run.</p>
+        </div>
+        <div class="faq-list">
+          <details open data-reveal>
+            <summary>Which agents does it support?</summary>
+            <p>
+              Claude Code and Codex local history, including supported Codex CLI and editor
+              sessions. Cursor history is not supported yet. Planned MCP client compatibility is
+              separate from reading an agent’s own history.
+            </p>
+          </details>
+          <details data-reveal>
+            <summary>Does it need an account or API key?</summary>
+            <p>
+              No. The current viewer reads local transcript files. It does not call a model or
+              upload your sessions. Installing the npm package requires access to the npm registry.
+            </p>
+          </details>
+          <details data-reveal>
+            <summary>Does it change my session files?</summary>
+            <p>
+              No. Transcripts are read-only. Your notes, tags, pins, and preferences are stored
+              locally in the browser. You can export sessions as Markdown or JSON.
+            </p>
+          </details>
+          <details data-reveal>
+            <summary>Does a green tool call prove the task worked?</summary>
+            <p>
+              No. Runlens shows recorded activity. File changes are recorded operations, not a final
+              Git diff. Usage and cost appear only when recorded; Codex token totals cover the main
+              agent only.
+            </p>
+          </details>
+          <details data-reveal>
+            <summary>Can I connect an agent through MCP today?</summary>
+            <p>
+              Not yet. The MCP roadmap starts with a safety contract, then bounded search and
+              summary tools, then tested client setup. There is no announced release date.
+            </p>
+          </details>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer frame">
+      <div class="footer-close" data-reveal>
+        <p>Every run has a story.<br />Go see yours.</p>
+        <a href="#install" class="footer-arrow" aria-label="Go to setup commands">↗</a>
+      </div>
+      <div class="footer-wordmark" aria-hidden="true">Runlens</div>
+      <div class="footer-bottom">
+        <span>Made for the curious. Open source under MIT.</span>
+        <div>
+          <a href="https://www.npmjs.com/package/runlens" target="_blank" rel="noopener noreferrer"
+            >npm ↗</a
+          ><a
+            href="https://github.com/Priyadharshan0903/Runlens"
+            target="_blank"
+            rel="noopener noreferrer"
+            >GitHub ↗</a
+          ><a href="./THIRD_PARTY_NOTICES.md">Notices</a><a href="#">Back to top ↑</a>
+        </div>
+      </div>
+      <p class="independent">
+        Runlens is an independent project. Claude and OpenAI names identify supported agents and do
+        not imply endorsement.
+      </p>
+    </footer>
+  </body>
+</html>

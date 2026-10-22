@@ -21,6 +21,13 @@ Requires **Node.js 20 or newer**.
 npx runlens@latest
 ```
 
+Or install it globally and launch it whenever you need it:
+
+```sh
+npm i -g runlens
+runlens
+```
+
 Open the local URL printed in your terminal, usually `http://127.0.0.1:8740/`.
 To try changes that have not been released to npm, [run from source](docs/usage.md#run-from-source).
 
@@ -76,6 +83,17 @@ and [AGENTS.md](AGENTS.md). New readers follow the [adapter guide](docs/source-a
 
 [Usage](docs/usage.md) · [Codex support](docs/codex-sessions.md) ·
 [Release workflow](docs/releases.md) · [Changelog](CHANGELOG.md)
+
+## Landing page
+
+The public website has its own static build, separate from the local viewer:
+
+```sh
+npm run site:preview
+```
+
+Preview at `http://127.0.0.1:8741/`. Run `npm run site:build` to prepare `website-dist/` for
+hosting. See [website development](docs/website.md) for content, animation, and deployment notes.
 
 ## License
 

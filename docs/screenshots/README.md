@@ -10,3 +10,7 @@ no personal history, real project paths, account information, or user annotation
 The fixture responses use the normal session API shapes; labels, counts, navigation, and themes are
 rendered by the application. The images illustrate the UI, rather than claiming measured results
 from someone's real sessions. Update them when changing these views, and check both themes.
+
+Refreshed on 22 October 2026 from the current application build, including the agent-face Runlens
+mark. All four captures verified the rendered mark against `ui/assets/runlens.svg`. The landing
+page reuses these same demo images.

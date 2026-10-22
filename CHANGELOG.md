@@ -1,5 +1,24 @@
 # Changelog
 
+### 2026-10-22 — Runlens landing page
+
+- Added an independent monochrome website with product screenshots, benefits, an interactive
+  recorded-evidence walkthrough, FAQ, and npm/GitHub/release links.
+- Included selectable and copyable npx/global setup commands, scroll entrances, screenshot
+  transitions, keyboard controls, clipboard fallback, and reduced-motion support.
+- Grounded planned MCP content in Foglio's safety/search/summary/client-guidance tasks; clearly
+  distinguish unreleased tools and later candidates from current viewer capabilities.
+- Added separate static build and loopback preview commands, local fonts/assets, and relative
+  paths for future GitHub Pages hosting. Deployment remains deferred.
+- Refreshed all four demo screenshots from the current viewer and verified the updated Runlens
+  mark against the shared SVG; the website header and favicon reuse that same source asset.
+- Version screenshot URLs by content and the website assets by build so refreshed images replace
+  cached captures in the preview and future static hosting.
+- Validation: `npm run check` passed (107 tests), the standalone website build passed, and browser
+  checks passed for screenshot/walkthrough choices, keyboard activation, both copy commands and
+  clipboard fallback, FAQ, reduced motion, four viewport widths, and the no-JavaScript fallback.
+  Layout inspection passed at 1440, 768, and 390px with no failures.
+
 ### 2026-10-22 — Monochrome agent icon
 
 - Replaced the previous Runlens mark with a simple agent face: a white face with black borders

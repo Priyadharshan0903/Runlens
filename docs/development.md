@@ -74,6 +74,10 @@ npm test -- tests/core.test.ts tests/features.test.ts tests/projects.test.ts tes
 
 Runtime dependencies: none. Requires Node 20+.
 
+The public landing page is a separate static site in `website/`. Use `npm run site:preview`
+for port 8741 or `npm run site:build` for `website-dist/`. It is not bundled into the CLI.
+See [website development](website.md) for content, preview behavior, and future hosting notes.
+
 ## Directory map
 
 ```text
