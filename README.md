@@ -273,6 +273,10 @@ release → Run workflow**. It replaces the old draft-only `release.yml` workflo
 4. Publish the GitHub release immediately, with generated notes and the same archive/checksum
    attached. There is no draft or separate Publish button. Prereleases are marked accordingly.
 
+The publish command uses `./release/*.tgz`: the leading `./` makes the expanded archive path
+explicitly local. Without it, npm can interpret `release/runlens-<version>.tgz` as GitHub shorthand
+and attempt an SSH clone. See [npm package specifiers](https://docs.npmjs.com/cli/v11/using-npm/package-spec).
+
 Configure npm **runlens → Settings → Trusted Publisher → GitHub Actions** once, with owner
 `Priyadharshan0903`, repository `Runlens`, and workflow filename `publish.yml`. Permit direct
 `npm publish` if npm shows an allowed-actions setting. The workflow uses Node 24 and npm 11,
@@ -361,6 +365,14 @@ The build writes generated files in place under `dist/`, so it also works when t
 directory cannot be removed. Existing backend processes must be restarted to pick up backend changes.
 
 ## Change log
+
+### 2026-10-22 — Correct the npm archive path
+
+- Prefixed the workflow's publish archive path with `./`, so npm treats it as a local tarball
+  instead of a GitHub repository shorthand. npm's package-spec parser reproduced the failing
+  `git` interpretation and confirmed that the corrected path resolves to `file`.
+- The failed publish stopped before uploading a package. After pushing this workflow fix, start
+  a new manual run on the updated branch; rerunning the old run uses its original workflow commit.
 
 ### 2026-10-22 — Include account histories by default
 

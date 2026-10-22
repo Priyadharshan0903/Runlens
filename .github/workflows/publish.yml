@@ -104,7 +104,7 @@ jobs:
       - name: Publish the checked archive using npm trusted publishing
         env:
           NPM_TAG: ${{ needs.package.outputs.npm_tag }}
-        run: npm publish release/*.tgz --access public --provenance --tag "$NPM_TAG"
+        run: npm publish ./release/*.tgz --access public --provenance --tag "$NPM_TAG"
 
   release:
     name: Publish GitHub release
