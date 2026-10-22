@@ -9,8 +9,9 @@ import {
   ShieldCheckIcon,
 } from "@phosphor-icons/react";
 import { useMemo, useState } from "preact/hooks";
-import type { SearchMatch, SessionSummary } from "../../../src/core/types.js";
+import type { SearchMatch, SessionSummary, SessionSource } from "../../../src/core/types.js";
 import { formatAgo } from "../../shared/format.js";
+import { AgentIdentity } from "../../shared/agent-identity.js";
 import type { SessionMeta } from "../../shared/use-preferences.js";
 import type { Resource } from "../../shared/use-resource.js";
 import { groupSessionsByProject, sessionProject } from "./session-list.js";
@@ -19,10 +20,13 @@ import type { useSessionSearch } from "./use-session-search.js";
 export interface SessionLibrary {
   sessions: SessionSummary[];
   roots: string[];
+  sources?: SessionSource[];
 }
 
 interface LibraryProps {
   library: Resource<SessionLibrary>;
+  sessions: SessionSummary[];
+  sourceName?: string;
   matching: SessionSummary[];
   search: ReturnType<typeof useSessionSearch>;
   query: string;
@@ -35,10 +39,11 @@ interface LibraryProps {
 
 const DEFAULT_FILTERS = { project: "", period: "all", sort: "newest" };
 const PAGE_SIZE = 40;
-const NO_SESSIONS: SessionSummary[] = [];
 
 export function Library({
   library,
+  sessions,
+  sourceName,
   matching,
   search,
   query,
@@ -50,7 +55,6 @@ export function Library({
 }: LibraryProps) {
   const [filters, setFilters] = useState(DEFAULT_FILTERS);
   const searchQuery = query.trim();
-  const sessions = library.data?.sessions ?? NO_SESSIONS;
 
   const projects = useMemo(
     () =>
@@ -115,9 +119,10 @@ export function Library({
     <div class="library">
       <div class="page-heading">
         <div>
-          <p class="eyebrow">Your agent workspace</p>
           <h1>{scope === "pinned" ? "Pinned sessions" : "Sessions"}</h1>
-          <p class="page-description">Every run has a story. Find the steps that matter.</p>
+          <p class="page-description">
+            {sourceName ? `${sourceName} history` : "Your local agent history"}
+          </p>
         </div>
         <button class="button secondary" onClick={onRefresh}>
           <ArrowClockwiseIcon size={15} />
@@ -222,7 +227,9 @@ export function Library({
           <p>
             {sessions.length
               ? "Try another search, project, or date range."
-              : "Runlens reads your configured local session folders. Start a session with a supported agent, then refresh this library."}
+              : sourceName
+                ? `No ${sourceName} sessions found in the configured history folders. Start a session, then refresh.`
+                : "Runlens reads local Claude Code and Codex history. Start a session, then refresh this library."}
           </p>
           {!!sessions.length && (
             <button class="button secondary" onClick={clearFilters}>
@@ -264,9 +271,9 @@ function SessionTable({ sessions, annotations, matches, query, roots, onPin }: S
       <div class="session-table" role="table" aria-label="Sessions">
         <div class="session-table-head" role="row">
           <span role="columnheader">Session</span>
-          <span role="columnheader">Project</span>
+          <span role="columnheader">Agent / project</span>
           <span role="columnheader" class="num">
-            Agents
+            Subagents
           </span>
           <span role="columnheader" class="num">
             Last activity
@@ -310,8 +317,13 @@ function SessionTable({ sessions, annotations, matches, query, roots, onPin }: S
                 role="cell"
                 title={sessionProject(session).path ?? session.cwd}
               >
-                <FolderSimpleIcon size={14} />
-                {sessionProject(session).name}
+                <span class="table-source">
+                  <AgentIdentity source={session.source} />
+                </span>
+                <span class="table-project-name">
+                  <FolderSimpleIcon size={14} />
+                  {sessionProject(session).name}
+                </span>
               </span>
               <span class="num table-agents" role="cell">
                 {session.subagents ? (

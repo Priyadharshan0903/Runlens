@@ -172,6 +172,35 @@ mark {
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
+.agent-identity {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  vertical-align: middle;
+}
+.agent-identity > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-logo {
+  display: inline-block;
+  flex: none;
+  background: currentColor;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+}
+.agent-identity > svg,
+.agent-logo-pair {
+  flex: none;
+}
+.agent-logo-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
 .quiet {
   color: var(--muted);
 }

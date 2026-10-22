@@ -15,5 +15,6 @@ export function sessionNotFoundMessage(roots: string[]): string {
     "",
     "If this session belongs to another Claude Code account, restart Runlens with --dir <path> for its projects folder. Repeat --dir for each folder you want to include.",
     "By default, Runlens includes ~/.claude/projects, $CLAUDE_CONFIG_DIR/projects, and existing ~/.claude-accounts/*/projects folders. Passing --dir replaces those defaults.",
+    "Codex history is read from sessions and archived_sessions under $CODEX_HOME and ~/.codex. Use --codex-dir <path> to select other Codex history folders.",
   ].join("\n");
 }

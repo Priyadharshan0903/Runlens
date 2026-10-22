@@ -56,7 +56,11 @@ export function createServer({ sources, uiDir }: ServerOptions): Server {
 
       if (path === "/api/sessions") {
         listing = await listSessions(sources);
-        return json(res, { roots, sessions: listing.sessions });
+        return json(res, {
+          roots,
+          sources: sources.map(({ reader }) => reader.source),
+          sessions: listing.sessions,
+        });
       }
 
       const match = path.match(/^\/api\/sessions\/([\w-]+)$/);

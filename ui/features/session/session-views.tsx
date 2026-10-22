@@ -225,8 +225,10 @@ export function Statistics({ session, overview }: { session: Session; overview: 
               ))}
             </div>
             <p class="section-caption">
-              Includes main agent and subagents. Shared message IDs are counted once; cache reads
-              and writes are listed separately.
+              {session.usageScope === "main"
+                ? "Main agent only. Child totals are excluded because forked history can repeat parent usage."
+                : "Includes main agent and subagents. Shared message IDs are counted once."}{" "}
+              Cache reads and writes are listed separately.
             </p>
           </>
         ) : (
@@ -273,7 +275,7 @@ export function Statistics({ session, overview }: { session: Session; overview: 
           <div class="models-table">
             <div class="models-header">
               <span>Model</span>
-              <span class="num">Messages</span>
+              <span class="num">Usage records</span>
               <span class="num">Tokens</span>
             </div>
             {session.models.map((model) => (

@@ -3,8 +3,8 @@
 // per content block (thinking, text, tool_use), and tool results come back as "user"
 // records holding tool_result blocks matched by tool_use_id.
 
-import { createReadStream } from "node:fs";
-import { createInterface } from "node:readline";
+import { streamRecords } from "../jsonl.js";
+export { streamRecords } from "../jsonl.js";
 import type { Event } from "../../core/events.js";
 import { describeTool } from "./tools.js";
 import type { TokenUsage } from "../../core/types.js";
@@ -33,29 +33,6 @@ export interface Transcript {
 }
 
 type Rec = Record<string, unknown>;
-
-export async function* streamRecords(file: string, signal?: AbortSignal): AsyncIterable<Rec> {
-  signal?.throwIfAborted();
-  const input = createReadStream(file, { encoding: "utf8", signal });
-  const lines = createInterface({ input, crlfDelay: Infinity });
-  try {
-    for await (const line of lines) {
-      signal?.throwIfAborted();
-      if (!line.trim()) continue;
-      let value: unknown;
-      try {
-        value = JSON.parse(line);
-      } catch {
-        // A half-written last line while a session is live, or a corrupt line: skip it.
-        continue;
-      }
-      if (isRec(value)) yield value;
-    }
-  } finally {
-    lines.close();
-    input.destroy();
-  }
-}
 
 export async function readTranscript(file: string, cwd?: string): Promise<Transcript> {
   const records: Rec[] = [];

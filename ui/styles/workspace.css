@@ -63,6 +63,83 @@
   border: 1px solid var(--faint);
   border-radius: 50%;
 }
+.agent-select {
+  display: grid;
+  gap: 6px;
+  margin: 0 8px 18px;
+}
+.agent-select-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+.agent-picker {
+  position: relative;
+  min-width: 0;
+}
+.agent-picker summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 11px;
+  min-height: 38px;
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  color: var(--ink);
+  font-size: 13px;
+  cursor: pointer;
+  list-style: none;
+}
+.agent-picker summary::-webkit-details-marker {
+  display: none;
+}
+.agent-picker summary > span {
+  min-width: 0;
+}
+.agent-picker summary > svg {
+  flex: none;
+  color: var(--muted);
+}
+.agent-picker[open] summary,
+.agent-picker summary:hover {
+  background: var(--surface-2);
+}
+.agent-picker[open] summary > svg {
+  transform: rotate(180deg);
+}
+.agent-options {
+  position: absolute;
+  z-index: 25;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  display: grid;
+  gap: 2px;
+  padding: 5px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--bg);
+  box-shadow: 0 6px 20px #00000018;
+}
+.agent-options button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 34px;
+  padding: 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  text-align: left;
+}
+.agent-options button:hover,
+.agent-options button[aria-pressed="true"] {
+  background: var(--surface-2);
+}
+.agent-options button > svg {
+  flex: none;
+}
 .primary-nav {
   display: grid;
   gap: 4px;
@@ -108,24 +185,27 @@
   scrollbar-width: thin;
   scrollbar-color: var(--line-strong) transparent;
 }
-.grouping-control {
+.grouping-row {
   display: flex;
-  gap: 3px;
-  padding: 3px;
-  margin: 10px 8px 4px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--surface-2);
-}
-.grouping-control button {
-  flex: 1;
-  min-height: 28px;
-  border-radius: 4px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 10px 8px 4px 12px;
   color: var(--muted);
   font-size: 11px;
 }
+.grouping-control {
+  display: flex;
+  gap: 12px;
+}
+.grouping-control button {
+  min-height: 32px;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-size: 12px;
+}
 .grouping-control button[aria-pressed="true"] {
-  background: var(--bg);
+  border-bottom-color: var(--ink);
   color: var(--ink);
 }
 .project-group {
@@ -238,6 +318,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.recent-project .agent-identity {
+  max-width: 100%;
 }
 .day {
   font-size: 11px;

@@ -9,7 +9,6 @@ import {
   MagnifyingGlassIcon,
   PushPinIcon,
   SidebarSimpleIcon,
-  StackIcon,
 } from "@phosphor-icons/react";
 import type { TargetedKeyboardEvent } from "preact";
 import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
@@ -18,6 +17,7 @@ import { between, formatClock, formatDuration, plural, projectName } from "../..
 import { SessionInspector } from "./inspector.js";
 import type { SessionMeta } from "../../shared/use-preferences.js";
 import { useResource } from "../../shared/use-resource.js";
+import { AgentIdentity } from "../../shared/agent-identity.js";
 import { AgentStep, Expansion, Target, TurnView } from "./transcript.js";
 import {
   ActivityTrace,
@@ -244,10 +244,11 @@ function SessionDetail({
           <header class="session-head">
             <div class="session-kicker">
               <span class="provider-label">
-                <StackIcon size={14} />
-                {session.source.name}
+                <AgentIdentity source={session.source} />
               </span>
-              <span class="session-id">{session.id.slice(0, 8)}</span>
+              <span class="session-id" title={session.id}>
+                {session.id.replace(`${session.source.id}--`, "").slice(0, 8)}
+              </span>
               <span class="freshness">
                 {reloading ? "Refreshing…" : updatedAt ? `Synced ${formatClock(updatedAt)}` : ""}
               </span>
@@ -394,7 +395,9 @@ function SessionDetail({
                 <strong>{formatNumber(overview.agents.length)}</strong>
               </div>
               <div>
-                <span>Recorded tokens</span>
+                <span>
+                  {session.usageScope === "main" ? "Main-agent tokens" : "Recorded tokens"}
+                </span>
                 <strong
                   title={
                     tokens === undefined

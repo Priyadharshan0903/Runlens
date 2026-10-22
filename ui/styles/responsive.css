@@ -56,6 +56,11 @@
   .mobile-menu {
     display: inline-grid;
   }
+  .agent-picker summary,
+  .agent-options button,
+  .grouping-control button {
+    min-height: 44px;
+  }
   .sidebar-toggle {
     display: none;
   }

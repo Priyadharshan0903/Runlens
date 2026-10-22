@@ -1,6 +1,7 @@
 # Working on Runlens
 
-Read `README.md` for setup, behavior, limitations, and the change log.
+Start with `README.md`. Detailed behavior and limits live in `docs/usage.md`, code conventions
+in `docs/development.md`, and implementation history in `CHANGELOG.md`.
 
 ## Priorities
 
@@ -25,7 +26,7 @@ to extend. Preserve behavior during a refactor and explain any deliberate behavi
   components/hooks in `ui/shared`. Keep styles grouped by their UI responsibility.
 - Use Phosphor's supported `*Icon` exports, not its deprecated compatibility aliases.
 - Avoid new runtime dependencies unless there is a demonstrated need. The UI uses Preact.
-- Keep README behavior, architecture notes, and the change log current with substantive changes.
+- Keep README, the relevant linked guides, and `CHANGELOG.md` current with substantive changes.
 
 ## Verification
 

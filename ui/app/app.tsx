@@ -9,7 +9,12 @@ import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { SessionPage } from "../features/session/session-page.js";
 import { projectName } from "../shared/format.js";
 import { Library, type SessionLibrary } from "../features/library/library.js";
-import { matchingSessions, sessionProject } from "../features/library/session-list.js";
+import {
+  filterBySource,
+  matchingSessions,
+  sessionProject,
+  sessionSources,
+} from "../features/library/session-list.js";
 import { useSessionSearch } from "../features/library/use-session-search.js";
 import { usePreferences } from "../shared/use-preferences.js";
 import { useResource } from "../shared/use-resource.js";
@@ -31,6 +36,7 @@ function App() {
   const [route, setRoute] = useState<Route>(readRoute);
   const [layoutMode, setLayoutMode] = useState<LayoutMode>("default");
   const [query, setQuery] = useState("");
+  const [sourceId, setSourceId] = useState("");
   const searchInput = useRef<HTMLInputElement>(null);
   const mainContent = useRef<HTMLElement>(null);
   const {
@@ -49,11 +55,16 @@ function App() {
   const selectedId = route.page === "session" ? route.id : undefined;
   const scope = route.page === "library" ? route.scope : "all";
   const sessions = library.data?.sessions ?? NO_SESSIONS;
+  const sources = useMemo(
+    () => sessionSources(sessions, library.data?.sources),
+    [sessions, library.data?.sources],
+  );
+  const scopedSessions = useMemo(() => filterBySource(sessions, sourceId), [sessions, sourceId]);
   const navigationQuery = route.page === "library" ? query : "";
   const search = useSessionSearch(query, route.page === "library");
   const filteredSessions = useMemo(
-    () => matchingSessions(sessions, preferences.sessions, navigationQuery, search.matches),
-    [sessions, preferences.sessions, navigationQuery, search.matches],
+    () => matchingSessions(scopedSessions, preferences.sessions, navigationQuery, search.matches),
+    [scopedSessions, preferences.sessions, navigationQuery, search.matches],
   );
   const selectedSummary = sessions.find((session) => session.id === selectedId);
   const navigationOpen = layoutMode === "navigation";
@@ -93,6 +104,11 @@ function App() {
     updateMeta(id, { pinned: !preferences.sessions[id]?.pinned });
   }
 
+  function selectSource(value: string) {
+    setSourceId(value);
+    if (route.page === "session") location.hash = "#/";
+  }
+
   return (
     <>
       <a
@@ -117,8 +133,11 @@ function App() {
         )}
         <Sidebar
           sessions={filteredSessions}
+          sources={sources}
+          sourceId={sourceId}
+          onSourceChange={selectSource}
           pinnedCount={
-            sessions.filter((session) => preferences.sessions[session.id]?.pinned).length
+            scopedSessions.filter((session) => preferences.sessions[session.id]?.pinned).length
           }
           annotations={preferences.sessions}
           selectedId={selectedId}
@@ -205,7 +224,10 @@ function App() {
             )}
             {route.page === "library" ? (
               <Library
+                key={sourceId}
                 library={library}
+                sessions={scopedSessions}
+                sourceName={sources.find((source) => source.id === sourceId)?.name}
                 matching={filteredSessions}
                 search={search}
                 query={query}
