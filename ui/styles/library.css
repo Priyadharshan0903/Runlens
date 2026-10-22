@@ -4,11 +4,6 @@
   justify-content: space-between;
   gap: 16px;
 }
-.eyebrow {
-  color: var(--muted);
-  font-size: 12px;
-  margin-bottom: 7px;
-}
 .page-description {
   margin-top: 8px;
   color: var(--muted);
@@ -34,7 +29,7 @@
 }
 .library-summary span,
 .session-metrics span {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted);
 }
 .library-summary strong {
@@ -72,7 +67,7 @@
   width: 100%;
   background: transparent;
   border: 0;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
   padding: 0 2px;
 }
@@ -85,7 +80,7 @@
   align-items: center;
   gap: 7px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
   white-space: nowrap;
 }
 .sort-control select {
@@ -174,12 +169,24 @@
   white-space: nowrap;
 }
 .table-project {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.table-source {
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.table-project-name {
   display: flex;
   align-items: center;
-  gap: 7px;
-  color: var(--muted);
-  font-size: 12px;
-  white-space: nowrap;
+  gap: 6px;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }

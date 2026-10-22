@@ -28,6 +28,19 @@ ${license.trimEnd()}
 \`\`\``;
   }),
 );
+const brandLicense = await readFile("ui/assets/brands/LICENSE", "utf8");
+notices.push(`## Agent brand marks (Lobe Icons)
+
+Source: [Lobe Icons](https://github.com/lobehub/lobe-icons)
+
+The Claude and OpenAI SVG marks are vendored from Lobe Icons. Brand names and marks belong
+to their respective owners and identify supported agents; they do not imply endorsement.
+
+License supplied with the artwork (MIT):
+
+\`\`\`text
+${brandLicense.trimEnd()}
+\`\`\``);
 await writeFile(
   "THIRD_PARTY_NOTICES.md",
   "# Third-party notices\n\n" +
@@ -64,6 +77,7 @@ await build({
   format: "esm",
   jsx: "automatic",
   jsxImportSource: "preact",
+  loader: { ".svg": "base64" },
   // Phosphor icons are written for React; Preact's compat layer runs them unchanged.
   alias: {
     react: "preact/compat",
@@ -75,6 +89,7 @@ await build({
 });
 
 await copyFile("ui/index.html", "dist/ui/index.html");
+await copyFile("ui/assets/runlens.svg", "dist/ui/icon.svg");
 await build({
   entryPoints: ["ui/styles/index.css"],
   outfile: "dist/ui/styles.css",

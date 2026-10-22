@@ -75,7 +75,9 @@ export function SessionInspector({
         <div>
           <dt>Session ID</dt>
           <dd>
-            <code title={session.id}>{session.id.slice(0, 8)}</code>
+            <code title={session.id}>
+              {session.id.replace(`${session.source.id}--`, "").slice(0, 8)}
+            </code>
             <button
               class="icon-button"
               onClick={copySessionId}

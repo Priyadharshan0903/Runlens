@@ -1,6 +1,7 @@
 # Working on Runlens
 
-Read `README.md` for setup, behavior, limitations, and the change log.
+Start with `README.md`. Detailed behavior and limits live in `docs/usage.md`, code conventions
+in `docs/development.md`, and implementation history in `CHANGELOG.md`.
 
 ## Priorities
 
@@ -25,9 +26,12 @@ to extend. Preserve behavior during a refactor and explain any deliberate behavi
   components/hooks in `ui/shared`. Keep styles grouped by their UI responsibility.
 - Use Phosphor's supported `*Icon` exports, not its deprecated compatibility aliases.
 - Avoid new runtime dependencies unless there is a demonstrated need. The UI uses Preact.
-- Keep README behavior, architecture notes, and the change log current with substantive changes.
+- Keep README, the relevant linked guides, and `CHANGELOG.md` current with substantive changes.
 
 ## Verification
+
+Laptop and desktop users are the primary UI audience. Prioritize those layouts, keyboard use,
+and both themes. Phone-specific polish is not a release requirement unless explicitly requested.
 
 Use `npm run check` after a coherent change. It checks formatting, types, core/feature tests,
 and the production build without starting an HTTP server. Add focused tests for behavior changes.

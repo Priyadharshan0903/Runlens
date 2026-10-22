@@ -9,15 +9,16 @@ import {
   MagnifyingGlassIcon,
   PushPinIcon,
   SidebarSimpleIcon,
-  StackIcon,
 } from "@phosphor-icons/react";
 import type { TargetedKeyboardEvent } from "preact";
 import { useCallback, useEffect, useMemo, useState } from "preact/hooks";
 import type { Session } from "../../../src/core/types.js";
 import { between, formatClock, formatDuration, plural, projectName } from "../../shared/format.js";
 import { SessionInspector } from "./inspector.js";
+import { SessionScrollControl } from "./session-scroll-control.js";
 import type { SessionMeta } from "../../shared/use-preferences.js";
 import { useResource } from "../../shared/use-resource.js";
+import { AgentIdentity } from "../../shared/agent-identity.js";
 import { AgentStep, Expansion, Target, TurnView } from "./transcript.js";
 import {
   ActivityTrace,
@@ -244,12 +245,33 @@ function SessionDetail({
           <header class="session-head">
             <div class="session-kicker">
               <span class="provider-label">
-                <StackIcon size={14} />
-                {session.source.name}
+                <AgentIdentity source={session.source} />
               </span>
-              <span class="session-id">{session.id.slice(0, 8)}</span>
-              <span class="freshness">
-                {reloading ? "Refreshing…" : updatedAt ? `Synced ${formatClock(updatedAt)}` : ""}
+              <span class="session-id" title={session.id}>
+                {session.id.replace(`${session.source.id}--`, "").slice(0, 8)}
+              </span>
+              <span
+                class="freshness"
+                title={
+                  refreshError
+                    ? `Couldn't sync: ${refreshError}`
+                    : live
+                      ? "Live refresh is on. New session activity is checked automatically."
+                      : "Last successful sync. Turn on Live refresh to follow new activity."
+                }
+              >
+                <span
+                  class="sync-dot"
+                  data-state={refreshError ? "error" : reloading || live ? "live" : "synced"}
+                  aria-hidden="true"
+                />
+                {refreshError
+                  ? "Sync failed"
+                  : reloading
+                    ? "Refreshing…"
+                    : updatedAt
+                      ? `${live ? "Live · " : ""}Synced ${formatClock(updatedAt)}`
+                      : ""}
               </span>
             </div>
             <div class="title-row">
@@ -394,7 +416,9 @@ function SessionDetail({
                 <strong>{formatNumber(overview.agents.length)}</strong>
               </div>
               <div>
-                <span>Recorded tokens</span>
+                <span>
+                  {session.usageScope === "main" ? "Main-agent tokens" : "Recorded tokens"}
+                </span>
                 <strong
                   title={
                     tokens === undefined
@@ -498,6 +522,7 @@ function SessionDetail({
               onMeta={onMeta}
             />
           </div>
+          <SessionScrollControl />
         </article>
       </Expansion.Provider>
     </Target.Provider>

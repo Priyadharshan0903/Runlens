@@ -40,17 +40,6 @@ export function formatClock(iso: string | undefined): string {
     : d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 }
 
-/** "13:57" today, "2 Oct, 13:57" on another day. */
-export function formatWhen(iso: string | undefined, now = new Date()): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  const time = formatClock(iso);
-  return d.toDateString() === now.toDateString()
-    ? time
-    : `${d.toLocaleDateString(undefined, { day: "numeric", month: "short" })}, ${time}`;
-}
-
 /** Sidebar section for a session, by the day it was last active. */
 export function dayGroup(iso: string, now = new Date()): string {
   const d = new Date(iso);
@@ -75,13 +64,6 @@ export function formatCost(usd: number | undefined): string {
 export function projectName(cwd: string | undefined): string {
   if (!cwd) return "unknown";
   return cwd.split("/").filter(Boolean).pop() ?? cwd;
-}
-
-/** A stable hue per project, so the same project has the same dot everywhere. */
-export function projectHue(cwd: string | undefined): number {
-  let hash = 0;
-  for (const ch of cwd ?? "") hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
-  return hash % 360;
 }
 
 export function firstLine(text: string | undefined, max = 140): string {

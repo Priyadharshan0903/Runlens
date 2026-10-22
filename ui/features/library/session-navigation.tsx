@@ -2,6 +2,7 @@ import { CaretRightIcon, FolderSimpleIcon, PushPinIcon } from "@phosphor-icons/r
 import { useMemo, useState } from "preact/hooks";
 import type { SessionSummary } from "../../../src/core/types.js";
 import { dayGroup, formatAgo } from "../../shared/format.js";
+import { AgentIdentity } from "../../shared/agent-identity.js";
 import type { SessionMeta, SidebarGrouping } from "../../shared/use-preferences.js";
 import { groupSessionsByProject, sessionProject, type ProjectGroup } from "./session-list.js";
 
@@ -14,6 +15,7 @@ interface SessionNavigationProps {
   query: string;
   searchPending: boolean;
   searchError?: string;
+  showSource?: boolean;
 }
 
 interface ProjectChoices {
@@ -30,6 +32,7 @@ export function SessionNavigation({
   query,
   searchPending,
   searchError,
+  showSource,
 }: SessionNavigationProps) {
   // Keep user choices when search temporarily removes a group from the results.
   const [projectChoices, setProjectChoices] = useState<Record<string, ProjectChoices>>({});
@@ -38,13 +41,16 @@ export function SessionNavigation({
 
   return (
     <>
-      <div class="grouping-control" role="group" aria-label="Group sessions">
-        <button aria-pressed={grouping === "project"} onClick={() => onGroupingChange("project")}>
-          By project
-        </button>
-        <button aria-pressed={grouping === "date"} onClick={() => onGroupingChange("date")}>
-          By date
-        </button>
+      <div class="grouping-row">
+        <span>Group by</span>
+        <div class="grouping-control" role="group" aria-label="Group sessions">
+          <button aria-pressed={grouping === "project"} onClick={() => onGroupingChange("project")}>
+            Project
+          </button>
+          <button aria-pressed={grouping === "date"} onClick={() => onGroupingChange("date")}>
+            Date
+          </button>
+        </div>
       </div>
       <nav
         class="recent-list"
@@ -66,6 +72,7 @@ export function SessionNavigation({
               key={group.project.id}
               group={group}
               annotations={annotations}
+              showSource={showSource}
               selectedId={selectedId}
               defaultOpen={index < 3 || group.sessions.some((session) => session.id === selectedId)}
               searching={searching}
@@ -79,7 +86,12 @@ export function SessionNavigation({
             />
           ))
         ) : (
-          <DateSessions sessions={sessions} annotations={annotations} selectedId={selectedId} />
+          <DateSessions
+            sessions={sessions}
+            annotations={annotations}
+            selectedId={selectedId}
+            showSource={showSource}
+          />
         )}
         {!sessions.length && !searchPending && (
           <p class="side-message">
@@ -95,6 +107,7 @@ interface ProjectSessionsProps {
   group: ProjectGroup;
   annotations: Record<string, SessionMeta>;
   selectedId?: string;
+  showSource?: boolean;
   defaultOpen: boolean;
   searching: boolean;
   choices?: ProjectChoices;
@@ -105,6 +118,7 @@ function ProjectSessions({
   group,
   annotations,
   selectedId,
+  showSource,
   defaultOpen,
   searching,
   choices,
@@ -159,6 +173,7 @@ function ProjectSessions({
                 annotation={annotations[session.id]}
                 selectedId={selectedId}
                 showProject={false}
+                showSource={showSource}
               />
             ))}
             {group.sessions.length > count && (
@@ -180,7 +195,8 @@ function DateSessions({
   sessions,
   annotations,
   selectedId,
-}: Pick<SessionNavigationProps, "sessions" | "annotations" | "selectedId">) {
+  showSource,
+}: Pick<SessionNavigationProps, "sessions" | "annotations" | "selectedId" | "showSource">) {
   const [visibleCount, setVisibleCount] = useState(30);
   const count = Math.max(
     visibleCount,
@@ -206,6 +222,7 @@ function DateSessions({
               session={session}
               annotation={annotations[session.id]}
               selectedId={selectedId}
+              showSource={showSource}
             />
           ))}
         </section>
@@ -224,11 +241,13 @@ function SessionLink({
   annotation,
   selectedId,
   showProject = true,
+  showSource,
 }: {
   session: SessionSummary;
   annotation?: SessionMeta;
   selectedId?: string;
   showProject?: boolean;
+  showSource?: boolean;
 }) {
   return (
     <a
@@ -242,7 +261,13 @@ function SessionLink({
         {annotation?.title || session.title}
       </span>
       <span class="recent-meta">
-        {showProject && <span class="recent-project">{sessionProject(session).name}</span>}
+        {(showProject || showSource) && (
+          <span class="recent-project" title={session.source?.name}>
+            {showSource && <AgentIdentity source={session.source} />}
+            {showSource && showProject && " · "}
+            {showProject && sessionProject(session).name}
+          </span>
+        )}
         <time dateTime={session.updatedAt}>{formatAgo(session.updatedAt)}</time>
       </span>
     </a>

@@ -1,21 +1,23 @@
 # Adding a source adapter
 
 Runlens uses a small TypeScript adapter interface, without a plugin framework or runtime dependency.
-The only registered production adapter is Claude Code. New readers are bundled into a Runlens
+The registered production adapters are Claude Code and Codex. New readers are bundled into a Runlens
 release; this is not a system for loading arbitrary npm plugins at runtime.
 
 ## Responsibilities
 
-| Location               | Owns                                                                                    |
-| ---------------------- | --------------------------------------------------------------------------------------- |
-| `src/sources/types.ts` | Reader contract, configured folders, and discovered file references.                    |
-| `src/sources/index.ts` | Explicit list of registered adapters.                                                   |
-| `src/sources/claude`   | Claude file layout, parsing, call semantics, subagent linking, and usage deduplication. |
-| `src/core/events.ts`   | Common events emitted by readers.                                                       |
-| `src/core/tree.ts`     | Common event-to-turn reconstruction, results, durations, and output limits.             |
-| `src/core/discover.ts` | Merged source results, stable public IDs, and shared project inference.                 |
-| `src/core/search.ts`   | Matching and snippets over normalized events, cancellation, and bounded result caching. |
-| `src/core/session.ts`  | Loading an allowlisted file through its owning adapter.                                 |
+| Location               | Owns                                                                                         |
+| ---------------------- | -------------------------------------------------------------------------------------------- |
+| `src/sources/types.ts` | Reader contract, configured folders, and discovered file references.                         |
+| `src/sources/index.ts` | Explicit list of registered adapters.                                                        |
+| `src/sources/claude`   | Claude file layout, parsing, call semantics, subagent linking, and usage deduplication.      |
+| `src/sources/codex`    | Codex rollouts, response items, concrete tool activity, child threads, and cumulative usage. |
+| `src/sources/jsonl.ts` | Cancellable JSONL iteration, damaged-line handling, and stream cleanup.                      |
+| `src/core/events.ts`   | Common events emitted by readers.                                                            |
+| `src/core/tree.ts`     | Common event-to-turn reconstruction, results, durations, and output limits.                  |
+| `src/core/discover.ts` | Merged source results, stable public IDs, and shared project inference.                      |
+| `src/core/search.ts`   | Matching and snippets over normalized events, cancellation, and bounded result caching.      |
+| `src/core/session.ts`  | Loading an allowlisted file through its owning adapter.                                      |
 
 ## Implement a reader
 
@@ -41,7 +43,10 @@ Create `src/sources/<agent>/reader.ts`, implementing `SourceReader`:
 
 Register the object once in `sourceReaders`. A new source is picked up by the shared discovery,
 loading, search, project grouping, and session features. Agent-specific CLI flags or a new source
-filter are separate UI/configuration work; they should not require changes to transcript features.
+filter are configuration work; they should not require changes to transcript features. The server
+returns registered source descriptors with the library; the agent selector renders from that list
+and encountered session sources, including agents with no sessions. Keep source scope separate from
+project/date grouping. An adapter should set `usageScope: "main"` when its totals exclude child work.
 
 Existing Claude sessions retain their unprefixed IDs for compatibility. Other readers receive
 `<source-id>--<local-id>` public IDs. Keep local IDs stable across refreshes and preserve the first
@@ -82,6 +87,12 @@ alone is not evidence that a file changed.
 Raw inputs remain available for other calls. `action.detail` can override the displayed summary,
 for example to show an MCP tool name beside its server. The UI should never inspect an agent's
 raw field names to recover these meanings.
+
+File effects can include `preview: { kind, text }` with `kind` set to `diff`, `added`, `removed`,
+or `content`. Scope this text to that effect's path. Preserve recorded patch context and source
+indentation; do not read current working files to reconstruct history. Use `content` when only a
+file snapshot is recorded and no previous version exists. Leave the preview absent when the
+record contains no source text. Keep raw input unchanged for inspection and exports.
 
 Omit cost, tokens, and reasoning when the source does not record them. Do not turn missing data
 into zero or estimate hidden reasoning. Recorded thinking events can populate optional step

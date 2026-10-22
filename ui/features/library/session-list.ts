@@ -1,4 +1,9 @@
-import type { SearchMatch, SessionProject, SessionSummary } from "../../../src/core/types.js";
+import type {
+  SearchMatch,
+  SessionProject,
+  SessionSummary,
+  SessionSource,
+} from "../../../src/core/types.js";
 import { projectName } from "../../shared/format.js";
 import type { SessionMeta } from "../../shared/use-preferences.js";
 
@@ -8,6 +13,21 @@ export interface ProjectGroup {
   directoryLabel?: string;
   sessions: SessionSummary[];
   updatedAt: string;
+}
+
+export function filterBySource(sessions: SessionSummary[], sourceId: string): SessionSummary[] {
+  return sourceId ? sessions.filter((session) => session.source?.id === sourceId) : sessions;
+}
+
+/** Registered readers include agents with no history; encountered sources support older servers. */
+export function sessionSources(
+  sessions: SessionSummary[],
+  registered: SessionSource[] = [],
+): SessionSource[] {
+  const sources = new Map(registered.map((source) => [source.id, source]));
+  for (const session of sessions)
+    if (session.source?.id) sources.set(session.source.id, session.source);
+  return [...sources.values()];
 }
 
 /** Older running servers do not yet return project metadata. */
@@ -88,6 +108,7 @@ export function matchingSessions(
       session.id,
       session.title,
       session.firstPrompt,
+      session.source?.name ?? "",
       session.cwd ?? "",
       project.name,
       project.path ?? "",

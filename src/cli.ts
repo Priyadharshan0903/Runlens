@@ -17,9 +17,11 @@ Usage
   npx runlens [options]
 
 Options
-  --dir <path>   Read only these Claude Code "projects" folders (repeatable).
+  --dir <path>   Override Claude Code "projects" folders (repeatable).
                  Default: $CLAUDE_CONFIG_DIR/projects, ~/.claude/projects,
                  and existing ~/.claude-accounts/*/projects folders
+  --codex-dir <path>  Override Codex rollout folders (repeatable).
+                 Default: sessions and archived_sessions under $CODEX_HOME and ~/.codex
   --port <n>     Port to listen on (default 8740; the next free one is used if taken)
   --no-open      Don't open the browser
   -v, --version  Print the version
@@ -31,6 +33,7 @@ async function main() {
   const { values } = parseArgs({
     options: {
       dir: { type: "string", multiple: true },
+      "codex-dir": { type: "string", multiple: true },
       port: { type: "string", default: "8740" },
       "no-open": { type: "boolean", default: false },
       version: { type: "boolean", short: "v" },
@@ -41,18 +44,24 @@ async function main() {
   if (values.help) return console.log(HELP);
   if (values.version) return console.log(__VERSION__);
 
-  const sources = sourceReaders.map((reader) => ({
-    reader,
-    roots:
-      reader.source.id === "claude" && values.dir?.length
-        ? values.dir.map((dir) => resolve(dir))
-        : reader.defaultRoots(),
-  }));
+  const overrides: Record<string, string[] | undefined> = {
+    claude: values.dir,
+    codex: values["codex-dir"],
+  };
+  const sources = sourceReaders.map((reader) => {
+    const override = overrides[reader.source.id];
+    return {
+      reader,
+      roots: override?.length ? override.map((dir) => resolve(dir)) : reader.defaultRoots(),
+    };
+  });
   const roots = sources.flatMap((source) => source.roots);
   const missing = roots.filter((r) => !existsSync(r));
   if (missing.length) fail(`Folder not found: ${missing.join(", ")}`);
   if (!roots.length)
-    fail("No session folders found. For Claude Code, pass --dir ~/.claude/projects");
+    fail(
+      "No session folders found. Use --dir <Claude projects folder> or --codex-dir <Codex sessions folder>.",
+    );
 
   const port = Number(values.port);
   if (!Number.isInteger(port) || port < 1 || port > 65535) fail(`Invalid port: ${values.port}`);

@@ -331,11 +331,25 @@ describe("Claude tool normalization", () => {
       describeTool("Edit", { file_path: "a.ts", old_string: "x", new_string: "y\nz" }).action,
     ).toMatchObject({
       replacement: { before: "x", after: "y\nz" },
-      files: [{ path: "a.ts", operation: "change", added: 2, removed: 1 }],
+      files: [
+        {
+          path: "a.ts",
+          operation: "change",
+          added: 2,
+          removed: 1,
+          preview: { kind: "diff", text: "-x\n+y\n+z" },
+        },
+      ],
     });
-    expect(
-      describeTool("Write", { file_path: "a.ts", content: "a\nb" }).action.files?.[0].added,
-    ).toBe(2);
+    expect(describeTool("Write", { file_path: "a.ts", content: "a\nb" }).action.files).toEqual([
+      {
+        path: "a.ts",
+        operation: "change",
+        added: 2,
+        removed: 0,
+        preview: { kind: "content", text: "a\nb" },
+      },
+    ]);
     expect(
       describeTool("MultiEdit", {
         file_path: "a.ts",
@@ -344,6 +358,14 @@ describe("Claude tool normalization", () => {
           { old_string: "d", new_string: "" },
         ],
       }).action.files,
-    ).toEqual([{ path: "a.ts", operation: "change", added: 2, removed: 2 }]);
+    ).toEqual([
+      {
+        path: "a.ts",
+        operation: "change",
+        added: 2,
+        removed: 2,
+        preview: { kind: "diff", text: "-a\n+b\n+c\n@@\n-d" },
+      },
+    ]);
   });
 });

@@ -56,6 +56,11 @@
   .mobile-menu {
     display: inline-grid;
   }
+  .agent-picker summary,
+  .agent-options button,
+  .grouping-control button {
+    min-height: 44px;
+  }
   .sidebar-toggle {
     display: none;
   }
@@ -67,6 +72,13 @@
   }
   .global-search {
     width: min(42vw, 360px);
+  }
+  .session-row-title {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 }
 @media (max-width: 767px) {
@@ -104,7 +116,7 @@
   }
   .page-description {
     max-width: 25ch;
-    font-size: 12px;
+    font-size: 13px;
     line-height: 1.6;
   }
   .page-heading .button {
@@ -118,7 +130,7 @@
     gap: 7px;
   }
   .library-summary span {
-    font-size: 11px;
+    font-size: 13px;
     min-height: 32px;
   }
   .library-summary strong {
@@ -176,7 +188,7 @@
   }
   .table-project {
     padding-left: 30px;
-    font-size: 11px;
+    font-size: 12px;
     max-width: 100%;
   }
   .table-time {
@@ -274,7 +286,7 @@
   .view-tab {
     min-height: 44px;
     padding-bottom: 10px;
-    font-size: 12px;
+    font-size: 13px;
   }
   .transcript-toolbar {
     gap: 8px;
@@ -289,14 +301,14 @@
     min-height: 40px;
   }
   .expand-button {
-    font-size: 11px;
+    font-size: 12px;
     min-height: 40px;
   }
   .expand-button svg {
     display: none;
   }
   .trace-label {
-    font-size: 11px;
+    font-size: 12px;
   }
   .trace-label > span:last-child {
     max-width: 22ch;
@@ -337,7 +349,7 @@
     min-height: 40px;
   }
   .verb {
-    font-size: 12px;
+    font-size: 13px;
   }
   .detail {
     font-size: 11px;
@@ -346,7 +358,16 @@
     display: none;
   }
   .why {
-    font-size: 12px;
+    font-size: 13px;
+  }
+  .error-line {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.6;
+    font-size: 13px;
   }
   .agent-head {
     padding: 10px;

@@ -119,7 +119,7 @@ h2 {
   font-weight: 600;
 }
 h3 {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
 }
 button,
@@ -172,11 +172,40 @@ mark {
   font-variant-numeric: tabular-nums;
   text-align: right;
 }
+.agent-identity {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  vertical-align: middle;
+}
+.agent-identity > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-logo {
+  display: inline-block;
+  flex: none;
+  background: currentColor;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+}
+.agent-identity > svg,
+.agent-logo-pair {
+  flex: none;
+}
+.agent-logo-pair {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
 .quiet {
   color: var(--muted);
 }
 .text-button {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--ink-2);
   display: inline-flex;
@@ -208,7 +237,7 @@ mark {
   align-items: center;
   justify-content: center;
   gap: 7px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 500;
   border-radius: 6px;
   white-space: nowrap;

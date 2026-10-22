@@ -28,6 +28,8 @@ export interface FileEffect {
   /** Recorded replacement counts; applied only when the call succeeds. */
   added: number;
   removed: number;
+  /** Recorded text for this file only; never reconstructed from the current filesystem. */
+  preview?: { kind: "diff" | "added" | "removed" | "content"; text: string };
 }
 
 export interface ToolAction {
@@ -137,8 +139,9 @@ export interface Session {
   costUSD?: number;
   linesAdded?: number;
   linesRemoved?: number;
-  /** Recorded usage across the main agent and subagents, deduplicated by message id. */
+  /** Recorded usage, deduplicated by the reader. Scope defaults to the complete session. */
   usage?: TokenUsage;
+  usageScope?: "main";
   models?: ModelUsage[];
   turns: Turn[];
   /** Totals across the main agent and every subagent. */

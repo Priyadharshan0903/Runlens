@@ -41,6 +41,7 @@ describe("server", () => {
     const list = await get("/api/sessions");
     expect(list.status).toBe(200);
     expect(JSON.parse(list.body).sessions).toHaveLength(1);
+    expect(JSON.parse(list.body).sources).toEqual([claudeReader.source]);
 
     const one = await get("/api/sessions/s1");
     expect(JSON.parse(one.body).turns[0]).toMatchObject({ prompt: "hello", final: "hi" });
