@@ -1,5 +1,90 @@
 # Changelog
 
+### 2026-10-22 — Manual GitHub Pages deployment
+
+- Add a separate `Deploy website to GitHub Pages` workflow triggered only by manual dispatch.
+  Check the selected commit, build the landing page, and upload only `website-dist/` before deploying.
+- Pin GitHub actions to commit hashes, scope Pages/OIDC write permissions to the deployment job,
+  and serialize deployments without cancelling an active run.
+- Document the one-time Pages source setting and manual launch from the Actions tab.
+- Validation: Actionlint passed, all 107 server-free tests and both builds passed, and 23 static
+  asset/link references resolved under the repository's `/Runlens/` path. No deployment was triggered.
+
+### 2026-10-22 — Quiet hero trace animation
+
+- Introduce the footer's trace motif in the hero with three paths and slower, fainter packets
+  flowing toward the product preview. Route around the headline, supporting copy, and install action.
+- Adapt paths to the available space on resize and use outer routes on narrow layouts.
+- Share packet playback with the footer, preserving its original timing and paths. Pause each
+  stage when offscreen or the document is hidden; reduced motion keeps static paths only.
+- Validation: all 107 tests and both builds passed. Browser checks covered seven widths, trace/text
+  clearance, packet motion and offscreen pause, reduced-motion cancellation and restart, footer
+  playback, and the keyboard install action. Final layout inspection reported no failures.
+
+### 2026-10-22 — Practical website examples and aligned footer controls
+
+- Replace the six-view reference table with expandable scenarios showing when Runlens helps:
+  finding a familiar fix, reviewing an unexpected change, and carrying context into a handoff.
+- Lower the closing sentence by 60px on desktop, connect the arrow to the upper trace, and center
+  the license/navigation row between the lower two traces. Retain the original animation paths.
+- Align controls through SVG coordinates and resize observation, with normal flow at smaller sizes.
+- Validation: all 107 tests and both builds passed. Browser checks covered all three disclosures,
+  keyboard activation, arrow/trace contact, link placement between lanes and clear of branches,
+  the 60px copy offset, and six viewport widths. Final layout inspection reported no failures.
+
+### 2026-10-22 — Restore the full footer animation
+
+- Restore the original trace animation's full-width, full-height field around the Runlens name,
+  preserving its paths, packet motion, and typography.
+- Place the closing sentence and action above that field and the small footer copy and links below
+  it, rather than shortening the animated area to the wordmark's height.
+- Validation: all 107 tests and both builds passed. Browser checks verified the full animation field,
+  clear copy and links at four widths, unchanged wordmark scale, playback, and reduced motion.
+
+### 2026-10-22 — Clear footer copy around the animation
+
+- Confine the animated traces to the large Runlens signature. Keep the closing sentence and action
+  above it, and the license, navigation links, and independence notice below it.
+- Preserve the wordmark's size and spacing. Pause trace playback based on the signature's visibility.
+- Replace the repeated timeline close-up with a concise guide mapping review questions to the six
+  session views, including Changes, Agents, Statistics, and Failures.
+- Validation: all 107 project tests and both builds passed. Browser checks confirmed clear space
+  around footer copy at 1440, 1280, 768, and 390px, unchanged wordmark scale, all six guide rows,
+  trace playback, reduced motion, and no horizontal overflow or runtime errors.
+
+### 2026-10-22 — Sharper website images and an animated close
+
+- Recaptured all four demo screenshots directly at 3× pixel density (4320 × 3000 lossless PNGs),
+  improving Retina clarity in the website and README without enlarging existing images.
+- Replaced the privacy section's tall crop with the complete library view and added expandable
+  screenshot previews with zoom, native Escape/focus behavior, and plain image-link fallback.
+- Added subtle branching run traces behind the closing wordmark. Packet motion pauses offscreen
+  and when the document is hidden; reduced motion keeps only the static background.
+- Snap hero movement to physical pixels and include all website source modules in asset versioning.
+- Validation: `npm run check` passed (107 tests), the website build passed, and browser checks
+  verified PNG dimensions, expansion/zoom, Escape/focus restoration, theme links, the complete
+  privacy image, footer playback/offscreen pause, reduced-motion stop/restart, and four viewport
+  widths. Layout inspection passed at 1440, 768, and 390px without failures.
+
+### 2026-10-22 — Runlens landing page
+
+- Added an independent monochrome website with product screenshots, benefits, an interactive
+  recorded-evidence walkthrough, FAQ, and npm/GitHub/release links.
+- Included selectable and copyable npx/global setup commands, scroll entrances, screenshot
+  transitions, keyboard controls, clipboard fallback, and reduced-motion support.
+- Grounded planned MCP content in Foglio's safety/search/summary/client-guidance tasks; clearly
+  distinguish unreleased tools and later candidates from current viewer capabilities.
+- Added separate static build and loopback preview commands, local fonts/assets, and relative
+  paths for future GitHub Pages hosting. Deployment remains deferred.
+- Refreshed all four demo screenshots from the current viewer and verified the updated Runlens
+  mark against the shared SVG; the website header and favicon reuse that same source asset.
+- Version screenshot URLs by content and the website assets by build so refreshed images replace
+  cached captures in the preview and future static hosting.
+- Validation: `npm run check` passed (107 tests), the standalone website build passed, and browser
+  checks passed for screenshot/walkthrough choices, keyboard activation, both copy commands and
+  clipboard fallback, FAQ, reduced motion, four viewport widths, and the no-JavaScript fallback.
+  Layout inspection passed at 1440, 768, and 390px with no failures.
+
 ### 2026-10-22 — Monochrome agent icon
 
 - Replaced the previous Runlens mark with a simple agent face: a white face with black borders

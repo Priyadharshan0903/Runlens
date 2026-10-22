@@ -27,6 +27,8 @@
     "build": "node scripts/build.mjs",
     "start": "node dist/cli.js",
     "dev": "node scripts/build.mjs && node dist/cli.js",
+    "site:build": "node scripts/build-site.mjs",
+    "site:preview": "node scripts/build-site.mjs --serve",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "format": "prettier --write .",

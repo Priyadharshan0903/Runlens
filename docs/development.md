@@ -74,6 +74,10 @@ npm test -- tests/core.test.ts tests/features.test.ts tests/projects.test.ts tes
 
 Runtime dependencies: none. Requires Node 20+.
 
+The public landing page is a separate static site in `website/`. Use `npm run site:preview`
+for port 8741 or `npm run site:build` for `website-dist/`. It is not bundled into the CLI.
+See [website development](website.md) for content, preview behavior, and manual GitHub Pages deployment.
+
 ## Directory map
 
 ```text
@@ -132,6 +136,7 @@ scripts/
 .github/workflows/
   ci.yml                   full checks and package verification on Node 22/24
   publish.yml              checked archive, npm trusted publishing, and direct GitHub release
+  deploy-pages.yml         manually triggered website checks, build, and GitHub Pages deployment
 docs/
   usage.md                setup, navigation, privacy, and measurement details
   development.md          code layout and contribution conventions
