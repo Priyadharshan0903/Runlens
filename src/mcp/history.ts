@@ -14,6 +14,10 @@ import {
   type HistoryPolicy,
 } from "./safety.js";
 
+/** A complete scan of nothing reads like "no prior work"; say the scope itself is empty. */
+const EMPTY_SCOPE =
+  "No recorded sessions ran in this project scope, so nothing was searched. Check that the project is the folder those sessions ran in.";
+
 interface PageRequest {
   project?: string;
   offset?: number;
@@ -62,7 +66,10 @@ export class HistoryService {
     return this.pagination.page(
       {
         key,
-        base: { project: excerpt(project, 512) },
+        base: {
+          project: excerpt(project, 512),
+          ...(listing.sessions.length ? {} : { scope_warning: EMPTY_SCOPE }),
+        },
         field: "results",
         budget,
         iterator: searchSessions(listing, normalized, budget),
@@ -85,7 +92,12 @@ export class HistoryService {
     const session = listing.sessions.find((item) => item.id === id);
     const entry = listing.files.get(id);
     if (!session || !entry)
-      throw new HistoryError("session_not_found", "Session not found in the selected project.");
+      throw new HistoryError(
+        "session_not_found",
+        listing.sessions.length
+          ? "Session not found in the selected project."
+          : `Session not found. ${EMPTY_SCOPE}`,
+      );
     const budget = new ScanBudget();
     return this.pagination.page(
       {
@@ -106,20 +118,25 @@ export class HistoryService {
 function pageRequest(request: PageRequest) {
   const offset = request.offset ?? 0;
   const limit = request.limit ?? 3;
+  if (request.cursor !== undefined && request.offset !== undefined)
+    throw new HistoryError(
+      "invalid_page",
+      "Pass either cursor or offset, not both. Follow next_cursor alone; use offset only to restart from next_offset.",
+    );
+  if (request.cursor !== undefined && !/^[\da-f-]{36}$/.test(request.cursor))
+    throw new HistoryError(
+      "invalid_page",
+      "Cursor must be a next_cursor value from a previous page.",
+    );
   if (
     !Number.isSafeInteger(offset) ||
     offset < 0 ||
     offset > 100_000 ||
     !Number.isInteger(limit) ||
     limit < 1 ||
-    limit > 5 ||
-    (request.cursor !== undefined &&
-      (!/^[\da-f-]{36}$/.test(request.cursor) || request.offset !== undefined))
+    limit > 5
   )
-    throw new HistoryError(
-      "invalid_page",
-      "Offset must be 0–100000 and limit must be 1–5. Use cursor without offset.",
-    );
+    throw new HistoryError("invalid_page", "Offset must be 0–100000 and limit must be 1–5.");
   return { offset, limit };
 }
 

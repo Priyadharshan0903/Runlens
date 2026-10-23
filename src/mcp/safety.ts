@@ -1,5 +1,6 @@
+import { realpathSync } from "node:fs";
 import { homedir } from "node:os";
-import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { Listing } from "../core/discover.js";
 
 export const MAX_RESPONSE_BYTES = 16_384;
@@ -58,17 +59,35 @@ export interface HistoryPolicy {
   allowProjects?: string[];
 }
 
+/**
+ * Resolve symlinks and on-disk letter case, so `~/desktop/projects` matches transcripts that
+ * recorded `~/Desktop/Projects`. Missing tails (deleted projects) keep their spelling under the
+ * nearest existing ancestor.
+ */
+export function canonicalPath(path: string): string {
+  const absolute = resolve(path);
+  const missing: string[] = [];
+  for (let current = absolute; ; current = dirname(current)) {
+    try {
+      return join(realpathSync.native(current), ...missing);
+    } catch {
+      if (dirname(current) === current) return absolute;
+      missing.unshift(basename(current));
+    }
+  }
+}
+
 export function requestedScope(policy: HistoryPolicy, project?: string): string {
   const selected = project ?? policy.project;
   if (!isAbsolute(selected))
     throw new HistoryError("invalid_project", "Project must be an absolute directory path.");
-  const path = resolve(selected);
-  if (path === resolve(homedir()) || dirname(path) === path)
+  const path = canonicalPath(selected);
+  if (path === canonicalPath(homedir()) || dirname(path) === path)
     throw new HistoryError(
       "invalid_project",
       "Choose a project directory, not home or a filesystem root.",
     );
-  const allowed = [policy.project, ...(policy.allowProjects ?? [])].map((entry) => resolve(entry));
+  const allowed = [policy.project, ...(policy.allowProjects ?? [])].map(canonicalPath);
   if (!allowed.includes(path))
     throw new HistoryError(
       "project_not_allowed",
@@ -88,19 +107,29 @@ export function scopeListing(
       inside === "" || (inside !== ".." && !inside.startsWith(`..${sep}`) && !isAbsolute(inside))
     );
   };
+  // Recorded paths keep whatever case the client used; compare their on-disk identity.
+  const canonical = new Map<string, string>();
+  const identity = (path: string) => {
+    let value = canonical.get(path);
+    if (value === undefined) canonical.set(path, (value = canonicalPath(path)));
+    return value;
+  };
   const ancestors = listing.sessions
-    .flatMap((session) => (session.project?.path ? [session.project.path] : []))
+    .flatMap((session) => (session.project?.path ? [identity(session.project.path)] : []))
     .filter((path) => isWithin(directory, path))
     .sort((a, b) => a.length - b.length);
-  const project = ancestors[0] ?? directory;
+  // The shortest recorded group containing the grant is every in-scope session's group, so an
+  // unrecorded parent still selects nothing. Spelling-split groups share that identity.
   // A recorded ancestor can merge viewer groups, but must not widen a startup grant.
-  const sessions = listing.sessions.filter(
-    (session) =>
-      session.project?.path === project &&
-      session.cwd &&
-      isAbsolute(session.cwd) &&
-      isWithin(resolve(session.cwd), directory),
-  );
+  const sessions = ancestors.length
+    ? listing.sessions.filter(
+        (session) =>
+          session.project?.path !== undefined &&
+          session.cwd &&
+          isAbsolute(session.cwd) &&
+          isWithin(identity(session.cwd), directory),
+      )
+    : [];
   const files = new Map(
     sessions.flatMap((session) => {
       const entry = listing.files.get(session.id);

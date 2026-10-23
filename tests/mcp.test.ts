@@ -1,10 +1,29 @@
-import { readFileSync, rmSync, truncateSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  truncateSync,
+  writeFileSync,
+} from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { listSessions } from "../src/core/discover.js";
 import { HistoryService } from "../src/mcp/history.js";
+import { ScanLimiter } from "../src/mcp/limiter.js";
 import {
+  CURSOR_IDLE_MS,
+  CURSOR_MAX_AGE_MS,
+  CURSOR_REPLAY_MS,
+  HistoryPagination,
+  MAX_LIVE_CURSORS,
+} from "../src/mcp/pagination.js";
+import { ScanBudget, type ScanRecord } from "../src/mcp/scan.js";
+import {
+  canonicalPath,
   excerpt,
   historyFailure,
   historyResponse,
@@ -110,6 +129,8 @@ describe("MCP safety contract", () => {
     ).toEqual(["codex--later-codex", "earlier-claude"]);
     expect(scopeListing(listing, "/work/demo-copy").listing.sessions).toEqual([]);
     expect(scopeListing(listing, "/work/demo/src").listing.sessions).toEqual([]);
+    // Granting an unrecorded parent does not merge the separate projects below it.
+    expect(scopeListing(listing, "/work").listing.sessions).toEqual([]);
     const result = await service.search("timeout");
     expect(JSON.stringify(result)).not.toContain("different-project");
     const granted = new HistoryService(list, {
@@ -119,6 +140,33 @@ describe("MCP safety contract", () => {
     expect(
       JSON.stringify(await granted.search("timeout", { project: "/personal/demo" })),
     ).toContain("different-project");
+  });
+
+  it("matches grants and recorded folders by on-disk identity, not spelling", async () => {
+    const real = mkdtempSync(join(tmpdir(), "runlens-Identity-"));
+    const link = `${real}-link`;
+    symlinkSync(real, link);
+    folders.push(link, real);
+    const canonical = realpathSync.native(real);
+    expect(requestedScope({ project: link })).toBe(canonical);
+    expect(canonicalPath(join(link, "gone", "deeper"))).toBe(join(canonical, "gone", "deeper"));
+    // Case-insensitive volumes (macOS, Windows) accept a differently cased grant.
+    const project = existsSync(real.toUpperCase()) ? real.toUpperCase() : link;
+    const { list, writeSession } = fixture();
+    writeSession("recorded-real", [
+      { ...prompt("Identity check from the real folder"), cwd: join(real, "src") },
+      say("ok"),
+    ]);
+    writeSession("recorded-link", [
+      { ...prompt("Identity check through the link"), cwd: link },
+      say("ok"),
+    ]);
+    const service = track(new HistoryService(list, { project }));
+    const found = await service.search("identity check", { limit: 5 });
+    expect(found.project).toBe(canonical);
+    expect(
+      (found.results as { session_id: string }[]).map((item) => item.session_id).sort(),
+    ).toEqual(["recorded-link", "recorded-real"]);
   });
 
   it("never widens a project grant when recorded ancestors merge the viewer's project groups", async () => {
@@ -643,10 +691,81 @@ describe("MCP safety contract", () => {
     const service = track(new HistoryService(async () => listing, { project: "/work/demo" }));
     const first = await service.summary("earlier-claude", { limit: 1 });
     expect(closed).toBe(false);
-    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    await vi.advanceTimersByTimeAsync(CURSOR_IDLE_MS - 1);
+    expect(closed).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
     expect(closed).toBe(true);
     await expect(
       service.summary("earlier-claude", { cursor: first.next_cursor! }),
+    ).rejects.toMatchObject({ code: "invalid_cursor" });
+  });
+
+  it("ends a frequently followed walk ten minutes after its first page", async () => {
+    const { list } = fixture();
+    const listing = await list();
+    listing.files.get("earlier-claude")!.reader = {
+      ...claudeReader,
+      async *readEvents() {
+        for (let i = 0; i < 20; i++) yield { type: "prompt", text: `Question ${i}`, at: tick() };
+      },
+    };
+    vi.useFakeTimers();
+    const service = track(new HistoryService(async () => listing, { project: "/work/demo" }));
+    let page = await service.summary("earlier-claude", { limit: 1 });
+    const step = CURSOR_IDLE_MS - 1;
+    let elapsed = 0;
+    for (; elapsed + step < CURSOR_MAX_AGE_MS; elapsed += step) {
+      await vi.advanceTimersByTimeAsync(step);
+      page = await service.summary("earlier-claude", { cursor: page.next_cursor!, limit: 1 });
+    }
+    await vi.advanceTimersByTimeAsync(step);
+    await expect(
+      service.summary("earlier-claude", { cursor: page.next_cursor!, limit: 1 }),
+    ).rejects.toMatchObject({
+      code: "invalid_cursor",
+      message: expect.stringContaining("next_offset"),
+    });
+    // The legacy offset still resumes where the expired cursor stopped.
+    const resumed = await service.summary("earlier-claude", {
+      offset: page.next_offset!,
+      limit: 1,
+    });
+    expect(resumed.turns).toMatchObject([{ asked: `Question ${page.next_offset}` }]);
+  });
+
+  it("keeps consumed cursors for a one-minute retry without using live slots", async () => {
+    const { service } = fixture();
+    vi.useFakeTimers();
+    const first = await service.search("timeout", { limit: 1 });
+    const second = await service.search("timeout", { cursor: first.next_cursor!, limit: 1 });
+    const fresh = [];
+    for (let i = 0; i <= MAX_LIVE_CURSORS; i++)
+      fresh.push(await service.search("timeout", { limit: 1 }));
+    // The oldest live cursor was evicted; the consumed one still replays.
+    await expect(
+      service.search("timeout", { cursor: fresh[0].next_cursor!, limit: 1 }),
+    ).rejects.toMatchObject({ code: "invalid_cursor" });
+    expect(await service.search("timeout", { cursor: first.next_cursor!, limit: 1 })).toEqual(
+      second,
+    );
+    await vi.advanceTimersByTimeAsync(CURSOR_REPLAY_MS);
+    await expect(
+      service.search("timeout", { cursor: first.next_cursor!, limit: 1 }),
+    ).rejects.toMatchObject({ code: "invalid_cursor" });
+  });
+
+  it("shares one continuation between duplicate concurrent resumes", async () => {
+    const { service } = fixture();
+    const first = await service.summary("earlier-claude", { limit: 1 });
+    const request = { cursor: first.next_cursor!, limit: 1 };
+    const [a, b] = await Promise.all([
+      service.summary("earlier-claude", request),
+      service.summary("earlier-claude", request),
+    ]);
+    expect(a).toBe(b);
+    expect(a).toMatchObject({ turns: [{ asked: "What should we do next?" }] });
+    await expect(
+      service.summary("earlier-claude", { cursor: first.next_cursor!, limit: 2 }),
     ).rejects.toMatchObject({ code: "invalid_cursor" });
   });
 
@@ -745,5 +864,155 @@ describe("MCP safety contract", () => {
     const error = historyFailure(new Error("/private/internal/history sk-proj-" + "x".repeat(40)));
     expect(error.error).toBe("history_unavailable");
     expect(JSON.stringify(error)).not.toMatch(/internal\/history|sk-proj/);
+  });
+});
+
+describe("MCP scan admission", () => {
+  const deferred = () => {
+    let resolve!: () => void;
+    const promise = new Promise<void>((done) => {
+      resolve = done;
+    });
+    return { promise, resolve };
+  };
+
+  it("runs at most the active limit, admits waiters in order, and rejects overflow", async () => {
+    const limiter = new ScanLimiter(2, 2);
+    const signal = new AbortController().signal;
+    const gate = deferred();
+    const order: number[] = [];
+    let running = 0;
+    let peak = 0;
+    const task = (id: number) => async () => {
+      order.push(id);
+      peak = Math.max(peak, ++running);
+      await gate.promise;
+      running--;
+      return id;
+    };
+    const admitted = [1, 2, 3, 4].map((id) => limiter.run(task(id), signal));
+    await expect(limiter.run(task(5), signal)).rejects.toMatchObject({ code: "busy" });
+    expect(order).toEqual([1, 2]);
+    gate.resolve();
+    expect(await Promise.all(admitted)).toEqual([1, 2, 3, 4]);
+    expect(order).toEqual([1, 2, 3, 4]);
+    expect(peak).toBe(2);
+    // Slots are all returned once the queue drains.
+    expect(await Promise.all([limiter.run(task(6), signal), limiter.run(task(7), signal)])).toEqual(
+      [6, 7],
+    );
+  });
+
+  it("drops cancelled waiters and reports a queue deadline as busy", async () => {
+    const limiter = new ScanLimiter(1, 4);
+    const gate = deferred();
+    const holder = limiter.run(() => gate.promise, new AbortController().signal);
+    const cancelled = new AbortController();
+    const timedOut = new AbortController();
+    const started = vi.fn(async () => "ran");
+    const leaving = limiter.run(started, cancelled.signal);
+    const late = limiter.run(started, timedOut.signal);
+    const kept = limiter.run(started, new AbortController().signal);
+    cancelled.abort();
+    timedOut.abort(new DOMException("deadline", "TimeoutError"));
+    await expect(leaving).rejects.toMatchObject({ name: "AbortError" });
+    await expect(late).rejects.toMatchObject({ code: "busy" });
+    gate.resolve();
+    await holder;
+    expect(await kept).toBe("ran");
+    expect(started).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("MCP page reporting", () => {
+  it("warns when the granted scope holds no recorded sessions", async () => {
+    const { list, service } = fixture();
+    expect(await service.search("timeout")).not.toHaveProperty("scope_warning");
+    const empty = track(new HistoryService(list, { project: "/work/never-recorded" }));
+    expect(await empty.search("timeout")).toMatchObject({
+      results: [],
+      next_cursor: null,
+      scope_warning: expect.stringContaining("No recorded sessions"),
+    });
+    await expect(empty.summary("earlier-claude")).rejects.toMatchObject({
+      code: "session_not_found",
+      message: expect.stringContaining("No recorded sessions"),
+    });
+  });
+
+  it("counts skipped transcripts beyond the per-page detail cap", async () => {
+    const { list, writeSession } = fixture();
+    const ids = Array.from({ length: 6 }, (_, i) => `huge-${i}`);
+    for (const id of ids)
+      truncateSync(writeSession(id, [prompt("timeout")]), MAX_TRANSCRIPT_BYTES + 1);
+    const service = track(new HistoryService(list, { project: "/work/demo" }));
+    let page = await service.search("timeout", { limit: 5 });
+    let named = (page.skipped as unknown[]).length;
+    let omitted = (page.skipped_omitted as number | undefined) ?? 0;
+    while (page.next_cursor) {
+      page = await service.search("timeout", { cursor: page.next_cursor, limit: 5 });
+      named += (page.skipped as unknown[]).length;
+      omitted += (page.skipped_omitted as number | undefined) ?? 0;
+    }
+    expect(omitted).toBeGreaterThan(0);
+    const { skipped_transcripts } = page.scan_progress as { skipped_transcripts: number };
+    expect(named + omitted).toBe(skipped_transcripts);
+    expect(skipped_transcripts).toBe(ids.length);
+  });
+
+  it("explains a cursor passed together with an offset", async () => {
+    const { service } = fixture();
+    const first = await service.search("timeout", { limit: 1 });
+    await expect(
+      service.search("timeout", { cursor: first.next_cursor!, offset: 1 }),
+    ).rejects.toMatchObject({ code: "invalid_page", message: expect.stringContaining("not both") });
+    await expect(service.search("timeout", { limit: 9 })).rejects.toMatchObject({
+      message: "Offset must be 0–100000 and limit must be 1–5.",
+    });
+  });
+
+  it("omits an entry too large for any page and keeps the walk going", async () => {
+    async function* records(): AsyncGenerator<ScanRecord> {
+      yield { kind: "item", value: { id: "before" }, last: false };
+      yield {
+        kind: "item",
+        value: { id: "huge", text: "x".repeat(MAX_RESPONSE_BYTES) },
+        last: false,
+      };
+      yield { kind: "item", value: { id: "after" }, last: true };
+    }
+    const scan = () => ({
+      key: "oversized",
+      base: {},
+      field: "results" as const,
+      budget: new ScanBudget(),
+      iterator: records(),
+      offset: 0,
+      remainingOffset: 0,
+    });
+    const pagination = new HistoryPagination();
+    try {
+      const first = await pagination.page(scan(), 2);
+      expect(first).toMatchObject({ results: [{ id: "before" }], next_offset: 1 });
+      const second = await pagination.resume(first.next_cursor!, "oversized", 2);
+      expect(second).toMatchObject({
+        results: [],
+        omitted_oversized: 1,
+        partial: true,
+        next_offset: 2,
+        stop_reason: "response_bytes",
+      });
+      const third = await pagination.resume(second.next_cursor!, "oversized", 2);
+      expect(third).toMatchObject({
+        results: [{ id: "after" }],
+        next_cursor: null,
+        stop_reason: "complete",
+      });
+      // An offset restart skips the omitted entry's position as well.
+      const restarted = await pagination.page({ ...scan(), offset: 2, remainingOffset: 2 }, 2);
+      expect(restarted).toMatchObject({ results: [{ id: "after" }], next_cursor: null });
+    } finally {
+      pagination.close();
+    }
   });
 });
