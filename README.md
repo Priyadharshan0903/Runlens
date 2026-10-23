@@ -160,7 +160,9 @@ and [AGENTS.md](AGENTS.md). New readers follow the [adapter guide](docs/source-a
 
 ## Landing page
 
-The public website has its own static build, separate from the local viewer:
+The public website has its own static build, separate from the local viewer. Its agent-logo cursor
+focuses its eyes over controls and screenshots, with native text-selection and accessible fallbacks.
+See [website development](docs/website.md) for behavior.
 
 ```sh
 npm run site:preview

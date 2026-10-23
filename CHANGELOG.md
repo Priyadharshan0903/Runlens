@@ -1,5 +1,16 @@
 # Changelog
 
+### 2026-10-23 — Landing-page agent cursor
+
+- Reuse the Runlens agent logo as a compact cursor, with its antenna marking the click point.
+  Focus its eyes over controls, show inspection lenses over screenshots, and blink on press,
+  connecting the interaction to “See what actually ran.” Keep the head stable as the eyes change.
+- Preserve native cursors for text, form controls, and screenshot dialogs. Use standard cursors
+  for touch, reduced motion, forced colors, and no JavaScript.
+- Bundle the existing SVG into the website and isolate its inline styles from other page artwork.
+- Follow the mouse directly with at most one requested frame per update and no idle animation
+  loop or new dependencies. Hide the decorative cursor during keyboard use, dragging, and blur.
+
 ### 2026-10-23 — Queued MCP scans, cursor lifetimes and path identity
 
 - Match startup grants, tool projects and recorded working directories by on-disk identity

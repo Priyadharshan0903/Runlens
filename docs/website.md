@@ -54,6 +54,7 @@ This follows GitHub's [custom Pages workflow guidance](https://docs.github.com/e
 
 - `website/index.html`: readable page content, viewer installation, MCP preview setup, external links, and FAQ.
 - `website/styles.css`: monochrome tokens, responsive layouts, folder-shaped surfaces, and control transitions.
+- `website/cursor.css` and `website/cursor.ts`: agent-logo cursor, focused eyes, and native fallbacks.
 - `website/main.ts`: screenshot previews, walkthrough selection, clipboard feedback, scroll entrances, and gentle hero movement.
 - `website/mcp-walkthrough.ts`: synthetic MCP search/summary/verification walkthrough, stage selection, and reduced-motion transitions.
 - `website/screenshot-preview.ts`: native image dialog, zoom, Escape dismissal, and full-image link fallback.
@@ -71,6 +72,21 @@ The product-preview section includes three native disclosures about finding a fa
 reviewing an unexpected change, and carrying session context into a handoff. These illustrative
 scenarios explain practical benefits using existing features; they are not customer quotations.
 They work with click, keyboard, and without JavaScript.
+
+Mouse and trackpad users get the actual Runlens agent mark as a compact 32px cursor, reusing
+`ui/assets/runlens.svg`. Its antenna center is the exact click point. The outlined paper-colored
+head stays visible over dark and light sections without inverting the content beneath it.
+Its square eyes focus over links, enabled buttons, and disclosures, turn into circular inspection
+lenses over screenshots, and blink on press. This connects the logo to “See what actually ran.”
+The logo's embedded styles are removed from the inline cursor so they cannot affect other SVGs.
+Pointer position follows the mouse directly; only the eyes' transforms transition.
+Rendering is limited to one requested frame per pointer movement or relevant page event, with no
+idle animation loop. Scroll and disclosure changes refresh the target beneath a stationary mouse.
+Text, code, form controls, and screenshot dialogs keep native cursors. Keyboard use, leaving the
+window, tab visibility changes, and dragging hide the enhancement. Touch-first, reduced-motion,
+forced-colors, and no-JavaScript environments keep standard cursors.
+The cursor is decorative and never intercepts clicks or replaces visible controls.
+Restart an existing preview after changing the build script; it now bundles the cursor's logo SVG.
 
 Motion uses transforms and opacity, runs entrances once per element, and schedules hero movement
 only after scrolling. `prefers-reduced-motion` removes travel, smooth scrolling, and transitions;

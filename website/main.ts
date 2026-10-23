@@ -1,4 +1,5 @@
 import "./styles.css";
+import { initializeCursor } from "./cursor";
 import { initializeFooterTraces } from "./footer-traces";
 import { initializeFooterLayout } from "./footer-layout";
 import { initializeScreenshotPreview } from "./screenshot-preview";
@@ -172,3 +173,4 @@ initializeHeroTraces(reducedMotion);
 initializeMcpWalkthrough(reducedMotion);
 initializeFooterLayout();
 initializeFooterTraces(reducedMotion);
+initializeCursor();

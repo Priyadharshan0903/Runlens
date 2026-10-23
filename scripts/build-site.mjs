@@ -58,7 +58,7 @@ const options = {
   format: "esm",
   target: "es2022",
   define: { __SITE_IMAGES__: JSON.stringify(screenshotSources) },
-  loader: { ".woff2": "file", ".woff": "file" },
+  loader: { ".woff2": "file", ".woff": "file", ".svg": "base64" },
   assetNames: "[name]-[hash]",
   minify: true,
   logLevel: "info",
