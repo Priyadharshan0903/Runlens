@@ -74,8 +74,12 @@ npm test -- tests/core.test.ts tests/features.test.ts tests/projects.test.ts tes
 
 Runtime dependencies: none. Requires Node 20+.
 
-The MCP source preview lives in `src/mcp/`: `safety.ts` owns project grants, masking and byte
-limits; `history.ts` projects normalized reader events; `server.ts` exposes the two stdio tools.
+The MCP source preview lives in `src/mcp/`: `safety.ts` owns project grants, masking and response
+limits; `history.ts` projects normalized reader events; `scan.ts` owns per-call work budgets and
+skip diagnostics; `pagination.ts` retains bounded process-local cursors and closes suspended readers;
+`server.ts` exposes the two stdio tools. Cursor pages keep adapter decoder state, stream completed
+turns and preserve collected entries at budget boundaries. Bind cursors to the operation, normalized
+query/session and granted project, and keep request abort signals separate from reader lifetimes.
 Do not route MCP through the viewer's broad transcript search, which includes raw tool content.
 The official server SDK, shared core and Zod are bundled into the CLI and their licenses into
 the notices. The client SDK is a development dependency for synthetic protocol checks. Discovery

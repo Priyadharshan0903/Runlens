@@ -1,5 +1,23 @@
 # Changelog
 
+### 2026-10-22 — Resumable MCP history scans
+
+- Add scoped, expiring search and summary cursors that preserve reader/decoder positions, avoid
+  rescanning earlier pages, and support retrying consumed cursors. Keep legacy offsets available.
+- Stop search when a page fills. Return collected results and continuations at total-byte and
+  event-budget boundaries, including empty partial pages, with explicit reasons and scan progress.
+- Report oversized transcripts as skips and continue through other sessions or child files.
+  Skip forks without available parent evidence rather than counting inherited records as new work.
+- Stream completed summary turns, retain unfinished turns across budget boundaries, and preserve
+  late tool results across prompt boundaries. Retain entries trimmed by the response-byte cap.
+- Bound cursor retention and release readers on expiry, eviction, cancellation and connection close.
+  Document cursor lifetimes, skip coverage, per-call budgets and unchanged discovery limitations.
+- Add regressions for oversized transcripts between matches, both exhausted scan budgets, cursor
+  scope/retries/expiry/cancellation, streaming summaries and UTF-8 trimming, plus real SDK-client paging.
+- Validation: all 138 server-free tests, types and the production build passed. Repository formatting
+  passed with ignored local `.claude/settings.local.json` excluded; its pre-existing formatting issue
+  blocks the unmodified `npm run check` command. Personal configuration was left untouched.
+
 ### 2026-10-22 — Interactive MCP walkthrough
 
 - Replace the static MCP question with a selectable search, recorded-summary, and verification

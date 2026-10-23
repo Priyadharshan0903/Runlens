@@ -145,19 +145,34 @@ is exposed. The server opens no HTTP port and launches no browser.
 
 ## Tools and limits
 
-| Tool              | Arguments                                      | Returned data                                                                                                                 |
-| ----------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `search_sessions` | `query`, optional `project`, `offset`, `limit` | One match per session, with a short masked prompt/assistant excerpt, origin, date, session ID and agent.                      |
-| `session_summary` | `id`, optional `project`, `offset`, `limit`    | Pages of recorded questions/answers, successful change paths and line counts, failed-call names/status/dates, and provenance. |
+| Tool              | Arguments                                                | Returned data                                                                                                                 |
+| ----------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `search_sessions` | `query`, optional `project`, `cursor`, `offset`, `limit` | One match per session, with a short masked prompt/assistant excerpt, origin, date, session ID and agent.                      |
+| `session_summary` | `id`, optional `project`, `cursor`, `offset`, `limit`    | Pages of recorded questions/answers, successful change paths and line counts, failed-call names/status/dates, and provenance. |
 
 Queries contain 2–200 characters. Search covers prompts, user interjections and assistant messages,
 including child transcripts. It excludes tool inputs/outputs, fetched web results, thinking and
 compaction text. Searching for a literal error that appears only in tool output will not find it.
 Search operates on masked text, so a hidden secret cannot produce a matching result.
 
-Both tools default to three entries and accept 1–5. Continue with the returned `next_offset` and
-the same query/ID/project; `null` means the scan found no next page. Summary entries are turns,
-with main transcript turns first and discovered child turns after them. Each turn includes at most
+Both tools default to three entries and accept 1–5. Continue by passing the returned `next_cursor`
+as `cursor`, with the same query/ID/project and no `offset`. A `null` cursor means the scan has ended.
+Search stops when the page fills without searching ahead for another match. A continuation may
+therefore return an empty page. Always follow a non-null cursor, including on empty partial pages.
+
+Cursors retain the scoped session list and reader/decoder position in this MCP process, so pages
+do not repeat discovery or reread earlier events. They expire five minutes after creation, on server
+restart, or when evicted from the sixteen-entry cursor cache. The cache includes recently consumed
+cursors: retrying one with the same page limit returns its saved response without advancing again.
+An expired, cancelled, or mismatched cursor returns `invalid_cursor`; restart without it. Expiry,
+eviction, cancellation and connection closure release retained readers. Each continuation gets a new
+per-call scan budget and deadline. File contents remain live; this is not a persistent history snapshot.
+
+Legacy `offset`/`next_offset` pagination remains available, but rescans from the start and can stall
+at a scan limit. Use cursors for large histories; a cursor and offset cannot be supplied together.
+Summary entries are turns, with main transcript turns first and discovered child turns after them.
+Completed turns stream at the next prompt, waiting for outstanding tool calls when necessary;
+an unfinished turn survives budget boundaries. Each turn includes at most
 eight changes and eight failures, with omitted counts. Inherited Codex fork prefixes/call IDs are
 removed with the same rule used by the viewer. Question/answer excerpts are capped at
 480/800 characters; no original patches or raw error lines are returned. Change counts describe
@@ -169,10 +184,24 @@ clients, so the protocol payload is larger than the envelope. Full-event scans a
 8 MiB per transcript, 32 MiB per call and 50,000 normalized events. Metadata discovery uses the
 shared reader catalogue and is outside that event-scan byte budget; request cancellation applies
 to discovery too. Requests have a 30-second cooperative cancellation deadline.
-The byte scan limits use the file size checked before reading; live files can change during a call.
-Calls report a limit error rather than silently returning an incomplete scan. Only one scan runs
-at a time. Cancellation closes adapter iterators; closing stdin stops the connection. Pagination
-is a live view, so sessions added or edited between calls can shift offsets.
+The byte scan limits use the file size checked before opening; live files can change during a call.
+The byte budget reserves each opened file once, even if its reader spans cursor pages. Discovery
+still reads metadata through the shared catalogue and is not made incremental by these cursors.
+
+Budget exhaustion returns collected entries successfully, with `partial: true`, `next_cursor`, and
+`stop_reason: "total_bytes"` or `"events"`. A normal page boundary uses `"page_full"`, trimming to the
+response cap uses `"response_bytes"`, and the end of the scan uses `"complete"`. `scan_progress`
+contains cumulative completed sessions, opened transcripts, reserved bytes, normalized events read,
+and skipped transcripts. These counters describe work, not total matching results.
+
+Transcripts over 8 MiB are skipped before opening their event stream. `skipped` reports up to four
+details per page, including session ID, main/child origin, `reason: "transcript_size"` and file bytes;
+the cumulative skip count includes any omitted details. A fork whose parent was skipped is also
+skipped with `"inherited_transcript_unavailable"` to avoid presenting inherited evidence as new work.
+Skipped files leave `partial: true` even on a terminal page with a null cursor: the scan ended with
+incomplete coverage, and a known session ID cannot bypass the transcript-size cap. Page boundaries
+also mark results partial until the remaining scan finishes. Only one scan runs at a time.
+Cancellation closes adapter iterators; closing stdin stops the connection.
 
 There are no model calls, generated summaries, persistent transcript indexes, write tools, prompts,
 sampling, background agent execution, or automatic registration in your client. The official MCP
