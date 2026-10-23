@@ -8,6 +8,7 @@ import { join, resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { listSessions } from "../src/core/discover.js";
 import { HistoryService } from "../src/mcp/history.js";
+import { MAX_ACTIVE_SCANS, MAX_QUEUED_SCANS } from "../src/mcp/limiter.js";
 import { MAX_RESPONSE_BYTES, MAX_TRANSCRIPT_BYTES } from "../src/mcp/safety.js";
 import { createMcpServer } from "../src/mcp/server.js";
 import { mcpFixture } from "./mcp-fixtures.js";
@@ -218,7 +219,7 @@ describe("Runlens MCP stdio", () => {
     }
   });
 
-  it("propagates protocol cancellation and refuses overlapping scans", async () => {
+  it("propagates protocol cancellation while an overlapping scan still runs", async () => {
     const history = new HistoryService((signal) => listSessions(fixture.sources, signal), {
       project: "/work/demo",
     });
@@ -257,14 +258,56 @@ describe("Runlens MCP stdio", () => {
       );
       const rejected = expect(pending).rejects.toThrow();
       await started;
-      const busy = await client.callTool({
-        name: "session_summary",
-        arguments: { id: "earlier-claude" },
-      });
-      expect(parsed(busy).error).toBe("busy");
+      const overlapping = parsed(
+        await client.callTool({
+          name: "session_summary",
+          arguments: { id: "earlier-claude" },
+        }),
+      );
+      expect(overlapping.error).toBeUndefined();
+      expect(overlapping.turns[0].asked).toBe("Fix the recurring search timeout");
       controller.abort();
       await rejected;
       await stopped;
+    } finally {
+      await client.close();
+      await server.close();
+    }
+  });
+
+  it("queues overlapping calls in order, bounds the queue, and answers every admitted call", async () => {
+    const history = new HistoryService((signal) => listSessions(fixture.sources, signal), {
+      project: "/work/demo",
+    });
+    const started: string[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    vi.spyOn(history, "search").mockImplementation(async (query) => {
+      started.push(query);
+      await gate;
+      return { results: [query], next_cursor: null, next_offset: null };
+    });
+    const server = createMcpServer(history, "test");
+    const client = new Client({ name: "queue-test", version: "1" });
+    const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+    await server.connect(serverTransport);
+    await client.connect(clientTransport);
+    try {
+      const queries = Array.from(
+        { length: MAX_ACTIVE_SCANS + MAX_QUEUED_SCANS + 1 },
+        (_, i) => `q${i}`,
+      );
+      const calls = queries.map((query) =>
+        client.callTool({ name: "search_sessions", arguments: { query } }).then(parsed),
+      );
+      await vi.waitFor(() => expect(started).toEqual(["q0", "q1"]));
+      expect(await calls.at(-1)).toMatchObject({ error: "busy" });
+      release();
+      const answers = await Promise.all(calls.slice(0, -1));
+      expect(answers.map((answer) => answer.results[0])).toEqual(queries.slice(0, -1));
+      expect(started).toEqual(queries.slice(0, -1));
     } finally {
       await client.close();
       await server.close();

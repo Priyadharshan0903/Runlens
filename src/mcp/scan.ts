@@ -25,6 +25,8 @@ export class ScanBudget {
     skipped_transcripts: 0,
   };
   skipped: Record<string, unknown>[] = [];
+  /** Skips on this page beyond the detail cap; pages' details plus these sum to the total. */
+  skippedOmitted = 0;
   private bytes = 0;
   private events = 0;
 
@@ -36,18 +38,22 @@ export class ScanBudget {
     this.bytes = 0;
     this.events = 0;
     this.skipped = [];
+    this.skippedOmitted = 0;
   }
 
   skip(session: string, origin: string, reason: string, bytes?: number) {
     this.progress.skipped_transcripts++;
     // Bound diagnostics too; the cumulative count includes omitted details.
-    if (this.skipped.length < 4)
-      this.skipped.push({
-        session_id: excerpt(session, 160),
-        origin: excerpt(origin, 40),
-        reason,
-        ...(bytes === undefined ? {} : { bytes }),
-      });
+    if (this.skipped.length >= 4) {
+      this.skippedOmitted++;
+      return;
+    }
+    this.skipped.push({
+      session_id: excerpt(session, 160),
+      origin: excerpt(origin, 40),
+      reason,
+      ...(bytes === undefined ? {} : { bytes }),
+    });
   }
 
   async *file(file: string, session: string, origin: string): AsyncGenerator<ScanPause, boolean> {

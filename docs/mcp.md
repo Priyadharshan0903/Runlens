@@ -119,7 +119,9 @@ ancestor is recorded. An MCP startup grant never widens to an inferred ancestor:
 also require the session's recorded working directory to be at or below the granted directory.
 Configure the project root explicitly to include its recorded subfolder sessions; launching from
 a subfolder does not grant its parent's other sessions. Git is not required. Same-name directories
-remain separate. Home, filesystem
+remain separate. Grants and recorded folders are compared by on-disk identity: symlinks are
+resolved, and on case-insensitive volumes `~/desktop/projects` matches sessions recorded in
+`~/Desktop/Projects`. Responses report the canonical path. Home, filesystem
 root and unknown-project histories are not valid default scopes. Missing project folders can still
 have useful recorded history. An unrecorded parent does not merge otherwise separate child projects.
 
@@ -157,19 +159,31 @@ Search operates on masked text, so a hidden secret cannot produce a matching res
 
 Both tools default to three entries and accept 1–5. Continue by passing the returned `next_cursor`
 as `cursor`, with the same query/ID/project and no `offset`. A `null` cursor means the scan has ended.
+If no recorded session ran in the granted project, search returns `scope_warning` with its empty
+result, so a wrong `--project` is not mistaken for missing history.
 Search stops when the page fills without searching ahead for another match. A continuation may
 therefore return an empty page. Always follow a non-null cursor, including on empty partial pages.
 
 Cursors retain the scoped session list and reader/decoder position in this MCP process, so pages
-do not repeat discovery or reread earlier events. They expire five minutes after creation, on server
-restart, or when evicted from the sixteen-entry cursor cache. The cache includes recently consumed
-cursors: retrying one with the same page limit returns its saved response without advancing again.
-An expired, cancelled, or mismatched cursor returns `invalid_cursor`; restart without it. Expiry,
-eviction, cancellation and connection closure release retained readers. Each continuation gets a new
+do not repeat discovery or reread earlier events. An unused cursor expires after two minutes, and
+every cursor in a walk expires ten minutes after its first page, which bounds how stale the session
+list can become. At most eight unused cursors are kept; a new one evicts the oldest. A consumed
+cursor keeps only its response for one minute: retrying it with the same page limit returns that
+response without advancing again, and a duplicate call made while the page is still being read
+shares it. Consumed cursors hold no reader and do not count toward the eight.
+An expired, cancelled, or mismatched cursor returns `invalid_cursor`; resume with `offset` set to
+the last page's `next_offset`, or restart without a cursor. Expiry, eviction, cancellation and
+connection closure release retained readers. Each continuation gets a new
 per-call scan budget and deadline. File contents remain live; this is not a persistent history snapshot.
 
+Each MCP process runs at most two history scans at once and queues up to eight more in arrival
+order. Waiting calls hold only their arguments. A call beyond the queue, or one still waiting when
+its 30-second deadline passes, returns `busy`; retry after earlier calls finish. Separate client
+sessions start separate processes and do not share this queue.
+
 Legacy `offset`/`next_offset` pagination remains available, but rescans from the start and can stall
-at a scan limit. Use cursors for large histories; a cursor and offset cannot be supplied together.
+at a scan limit. Use cursors for large histories; a cursor and offset cannot be supplied together,
+and passing both returns `invalid_page` saying so.
 Summary entries are turns, with main transcript turns first and discovered child turns after them.
 Completed turns stream at the next prompt, waiting for outstanding tool calls when necessary;
 an unfinished turn survives budget boundaries. Each turn includes at most
@@ -179,7 +193,9 @@ removed with the same rule used by the viewer. Question/answer excerpts are capp
 recorded successful operations, not a final Git diff. A recorded answer is not proof of task success.
 
 History envelopes, including warnings and pagination, are capped at 16 KiB of serialized UTF-8 JSON.
-A page may contain fewer entries to fit that limit. MCP also carries a text rendering for older
+A page may contain fewer entries to fit that limit. An entry too large to fit any page on its own is
+omitted and counted in `omitted_oversized`, with `partial: true`; the cursor and `next_offset` move
+past it. MCP also carries a text rendering for older
 clients, so the protocol payload is larger than the envelope. Full-event scans are limited to
 8 MiB per transcript, 32 MiB per call and 50,000 normalized events. Metadata discovery uses the
 shared reader catalogue and is outside that event-scan byte budget; request cancellation applies
@@ -196,11 +212,12 @@ and skipped transcripts. These counters describe work, not total matching result
 
 Transcripts over 8 MiB are skipped before opening their event stream. `skipped` reports up to four
 details per page, including session ID, main/child origin, `reason: "transcript_size"` and file bytes;
-the cumulative skip count includes any omitted details. A fork whose parent was skipped is also
+`skipped_omitted` counts that page's skips beyond those four, so the details plus omitted counts of
+all pages add up to the cumulative `skipped_transcripts`. A fork whose parent was skipped is also
 skipped with `"inherited_transcript_unavailable"` to avoid presenting inherited evidence as new work.
 Skipped files leave `partial: true` even on a terminal page with a null cursor: the scan ended with
 incomplete coverage, and a known session ID cannot bypass the transcript-size cap. Page boundaries
-also mark results partial until the remaining scan finishes. Only one scan runs at a time.
+also mark results partial until the remaining scan finishes. Scans are queued as described above.
 Cancellation closes adapter iterators; closing stdin stops the connection.
 
 There are no model calls, generated summaries, persistent transcript indexes, write tools, prompts,

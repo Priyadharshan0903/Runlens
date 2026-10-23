@@ -1,5 +1,27 @@
 # Changelog
 
+### 2026-10-23 — Queued MCP scans, cursor lifetimes and path identity
+
+- Match startup grants, tool projects and recorded working directories by on-disk identity
+  (`realpathSync.native`). A differently cased `--project`, such as `~/desktop/projects` on macOS,
+  previously matched no sessions while reporting a complete, non-partial result.
+- Replace the single-call `busy` guard with an in-process FIFO limiter: two scans run at once,
+  eight wait, and overflow or a queue deadline returns `busy`. No external queue is required.
+- Expire unused cursors after two minutes and whole walks ten minutes after their first page.
+  Keep at most eight live cursors, evicting the oldest. Keep consumed cursors for a one-minute
+  retry outside that cap, and share an in-flight page between duplicate resumes.
+- Point expired-cursor errors at resuming with `offset` set to the last `next_offset`.
+- Return `scope_warning` when the granted project holds no recorded sessions, and say so in
+  `session_not_found`, so an empty scope no longer reads as "no prior work".
+- Count skips beyond the four per-page details in `skipped_omitted`.
+- Omit an entry too large for any page as `omitted_oversized` instead of closing the scan.
+- Explain cursor-plus-offset requests directly, and state in the search tool description that each
+  result is one session with its first matching message.
+- Add regressions for grant identity (symlink, letter case, unrecorded parents), queue order and
+  bounds, waiter cancellation and deadlines, idle and maximum cursor age, replay retention,
+  live-cursor eviction, concurrent resumes, empty scopes, omitted skip details, oversized entries
+  and page-request errors.
+
 ### 2026-10-22 — Resumable MCP history scans
 
 - Add scoped, expiring search and summary cursors that preserve reader/decoder positions, avoid
