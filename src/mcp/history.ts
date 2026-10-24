@@ -1,3 +1,4 @@
+import { isAbsolute, resolve } from "node:path";
 import type { Listing } from "../core/discover.js";
 import type { Event } from "../core/events.js";
 import { buildTurns } from "../core/tree.js";
@@ -44,6 +45,19 @@ interface SearchRequest extends PageRequest {
 interface SummaryRequest extends PageRequest {
   query?: string;
 }
+
+interface ListRequest extends Omit<PageRequest, keyof ProjectionRequest> {
+  agent?: string;
+  title?: string;
+  updated_after?: string;
+  updated_before?: string;
+}
+
+interface FileHistoryRequest extends Omit<PageRequest, "detail" | "fields"> {}
+
+/** Matching turns kept per session, and matching paths kept per turn. */
+const MAX_FILE_TURNS = 5;
+const MAX_TURN_PATHS = 4;
 
 /** A separate projection: viewer search is deliberately broader and must not feed MCP. */
 export class HistoryService {
@@ -114,6 +128,103 @@ export class HistoryService {
           projection,
           directory === ALL_PROJECTS,
         ),
+        offset,
+        remainingOffset: offset,
+      },
+      limit,
+      signal,
+    );
+  }
+
+  /** Listing metadata only, newest first; no transcript is opened. */
+  async sessions(request: ListRequest = {}, signal?: AbortSignal) {
+    const { offset, limit } = pageRequest(request, 10, 25);
+    const title = request.title === undefined ? undefined : normalizeQuery(request.title);
+    const after = dateBound(request.updated_after, "updated_after");
+    const before = dateBound(request.updated_before, "updated_before");
+    if (after !== undefined && before !== undefined && after >= before)
+      throw new HistoryError("invalid_date", "updated_after must be earlier than updated_before.");
+    const directory = requestedScope(this.policy, request.project);
+    const filters = { agent: request.agent, title, after, before };
+    const key = JSON.stringify(["list", directory, filters]);
+    if (request.cursor) return this.pagination.resume(request.cursor, key, limit, signal);
+    const { listing, project } = await this.scoped(request.project, signal);
+    const budget = new ScanBudget();
+    return this.pagination.page(
+      {
+        key,
+        base: {
+          project: excerpt(project, 512),
+          ...(listing.sessions.length ? {} : { scope_warning: EMPTY_SCOPE }),
+        },
+        field: "results",
+        budget,
+        iterator: listedSessions(listing, filters, budget, directory === ALL_PROJECTS),
+        offset,
+        remainingOffset: offset,
+      },
+      limit,
+      signal,
+    );
+  }
+
+  /** Session counts per startup grant, or per recorded project with --all-projects. */
+  async projects(
+    request: Pick<PageRequest, "offset" | "limit" | "cursor"> = {},
+    signal?: AbortSignal,
+  ) {
+    const { offset, limit } = pageRequest(request, 10, 25);
+    const key = JSON.stringify(["projects"]);
+    if (request.cursor) return this.pagination.resume(request.cursor, key, limit, signal);
+    signal?.throwIfAborted();
+    const all = await this.list(signal);
+    signal?.throwIfAborted();
+    const groups = this.allProjects
+      ? recordedProjects(all)
+      : this.grants.map((grant) => ({
+          path: grant,
+          sessions: scopeListing(all, grant).listing.sessions,
+        }));
+    const budget = new ScanBudget();
+    return this.pagination.page(
+      {
+        key,
+        base: { all_projects: this.allProjects },
+        field: "results",
+        budget,
+        iterator: projectStats(groups, budget),
+        offset,
+        remainingOffset: offset,
+      },
+      limit,
+      signal,
+    );
+  }
+
+  /** Sessions whose successful recorded changes touched a path, newest first. */
+  async fileHistory(path: string, request: FileHistoryRequest = {}, signal?: AbortSignal) {
+    const target = normalizePath(path);
+    const { offset, limit } = pageRequest(request);
+    const projection = projectionOptions({
+      fields: ["gist"],
+      max_snippet_chars: request.max_snippet_chars,
+    });
+    const directory = requestedScope(this.policy, request.project);
+    const key = JSON.stringify(["file", directory, target, projection.key]);
+    if (request.cursor) return this.pagination.resume(request.cursor, key, limit, signal);
+    const { listing, project } = await this.scoped(request.project, signal);
+    const budget = new ScanBudget();
+    return this.pagination.page(
+      {
+        key,
+        base: {
+          project: excerpt(project, 512),
+          path: excerpt(target, 512),
+          ...(listing.sessions.length ? {} : { scope_warning: EMPTY_SCOPE }),
+        },
+        field: "results",
+        budget,
+        iterator: fileSessions(listing, target, budget, projection, directory === ALL_PROJECTS),
         offset,
         remainingOffset: offset,
       },
@@ -200,7 +311,19 @@ function normalizeQuery(query: string) {
   return normalized;
 }
 
-function pageRequest(request: PageRequest, defaultLimit = 3, maxLimit = 5) {
+function dateBound(value: string | undefined, name: string) {
+  if (value === undefined) return undefined;
+  const time = Date.parse(value);
+  if (!Number.isFinite(time))
+    throw new HistoryError("invalid_date", `${name} must be an ISO 8601 date or date-time.`);
+  return time;
+}
+
+function pageRequest(
+  request: Pick<PageRequest, "offset" | "limit" | "cursor">,
+  defaultLimit = 3,
+  maxLimit = 5,
+) {
   const offset = request.offset ?? 0;
   const limit = request.limit ?? defaultLimit;
   if (request.cursor !== undefined && request.offset !== undefined)
@@ -313,6 +436,159 @@ async function* searchSessions(
         },
         last: index === listing.sessions.length - 1,
       };
+  }
+}
+
+/** Group by the viewer's inferred project; home and unknown folders share one unnamed group. */
+function recordedProjects(listing: Listing) {
+  const groups = new Map<string, { path?: string; sessions: SessionSummary[] }>();
+  for (const session of listing.sessions) {
+    const id = session.project?.path ?? "no-project";
+    let group = groups.get(id);
+    if (!group) groups.set(id, (group = { path: session.project?.path, sessions: [] }));
+    group.sessions.push(session);
+  }
+  return [...groups.values()];
+}
+
+async function* projectStats(
+  groups: { path?: string; sessions: SessionSummary[] }[],
+  budget: ScanBudget,
+): AsyncGenerator<ScanRecord> {
+  for (const [index, { path, sessions }] of groups.entries()) {
+    budget.signal.throwIfAborted();
+    budget.progress.sessions_completed += sessions.length;
+    const agents: Record<string, number> = {};
+    for (const session of sessions)
+      agents[session.source.id] = (agents[session.source.id] ?? 0) + 1;
+    const started = sessions
+      .map((session) => safeDate(session.startedAt))
+      .filter(Boolean)
+      .sort();
+    yield {
+      kind: "item",
+      value: {
+        // A null path is home or an unknown folder; it cannot be selected as a project.
+        path: path === undefined ? null : excerpt(path, 512),
+        sessions: sessions.length,
+        agents,
+        first_started_at: started[0] ?? "",
+        // Sessions arrive newest first.
+        last_updated_at: safeDate(sessions[0]?.updatedAt),
+      },
+      last: index === groups.length - 1,
+    };
+  }
+}
+
+/** A file path, or a trailing fragment of one such as `src/server.ts`. */
+function normalizePath(path: string) {
+  const normalized = path.trim().replace(/\\/g, "/").replace(/^\.\//, "");
+  if (normalized.length < 2 || normalized.length > 512)
+    throw new HistoryError("invalid_path", "Path must contain between 2 and 512 characters.");
+  return normalized;
+}
+
+/**
+ * Exact paths, or whole trailing segments: `server.ts` never matches `myserver.ts`. Relative
+ * recorded paths (Codex patches) resolve against the session's folder for absolute targets.
+ */
+function pathMatches(recorded: string, target: string, cwd?: string) {
+  const path = recorded.replace(/\\/g, "/");
+  if (path === target) return true;
+  if (!isAbsolute(target)) return path.endsWith(`/${target}`);
+  return !isAbsolute(path) && !!cwd && isAbsolute(cwd) && resolve(cwd, path) === target;
+}
+
+async function* fileSessions(
+  listing: Listing,
+  target: string,
+  budget: ScanBudget,
+  projection: ProjectionOptions,
+  withProject: boolean,
+): AsyncGenerator<ScanRecord> {
+  for (const [index, session] of listing.sessions.entries()) {
+    budget.signal.throwIfAborted();
+    const entry = listing.files.get(session.id);
+    if (!entry) continue;
+    const turns: Record<string, unknown>[] = [];
+    let matchingTurns = 0;
+    for await (const record of recordedTurns(entry, budget)) {
+      if (record.kind === "pause") {
+        yield record;
+        continue;
+      }
+      const changes = new Map<string, { edits: number; added: number; removed: number }>();
+      for (const step of record.turn.steps) {
+        if (step.kind !== "tool" || step.result?.status !== "ok") continue;
+        for (const file of step.action.files ?? []) {
+          if (!pathMatches(file.path, target, session.cwd)) continue;
+          const change = changes.get(file.path) ?? { edits: 0, added: 0, removed: 0 };
+          change.edits++;
+          change.added += file.added;
+          change.removed += file.removed;
+          changes.set(file.path, change);
+        }
+      }
+      if (!changes.size) continue;
+      matchingTurns++;
+      if (turns.length === MAX_FILE_TURNS) continue;
+      turns.push({
+        origin: record.origin,
+        ...summarizeTurn(record.turn, projection),
+        files: [...changes].slice(0, MAX_TURN_PATHS).map(([path, change]) => ({ path, ...change })),
+        ...(changes.size > MAX_TURN_PATHS ? { omitted_files: changes.size - MAX_TURN_PATHS } : {}),
+      });
+    }
+    budget.progress.sessions_completed++;
+    if (turns.length)
+      yield {
+        kind: "item",
+        value: {
+          ...provenance(session),
+          ...(withProject && session.project?.path
+            ? { project: excerpt(session.project.path, 512) }
+            : {}),
+          matching_turns: matchingTurns,
+          turns,
+          omitted_turns: matchingTurns - turns.length,
+        },
+        last: index === listing.sessions.length - 1,
+      };
+  }
+}
+
+async function* listedSessions(
+  listing: Listing,
+  filters: { agent?: string; title?: string; after?: number; before?: number },
+  budget: ScanBudget,
+  withProject: boolean,
+): AsyncGenerator<ScanRecord> {
+  for (const [index, session] of listing.sessions.entries()) {
+    budget.signal.throwIfAborted();
+    const last = index === listing.sessions.length - 1;
+    const updated = Date.parse(session.updatedAt);
+    const title = excerpt(session.title, 160);
+    const matches =
+      listing.files.has(session.id) &&
+      (filters.agent === undefined || session.source.id === filters.agent) &&
+      (filters.after === undefined || updated >= filters.after) &&
+      (filters.before === undefined || updated < filters.before) &&
+      // Match the masked title that can be returned. No secret oracle.
+      (filters.title === undefined || title.toLowerCase().includes(filters.title));
+    budget.progress.sessions_completed++;
+    if (!matches) continue;
+    yield {
+      kind: "item",
+      value: {
+        ...provenance(session),
+        ...(withProject && session.project?.path
+          ? { project: excerpt(session.project.path, 512) }
+          : {}),
+        subagents: safeCount(session.subagents),
+      },
+      last,
+    };
   }
 }
 

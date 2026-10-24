@@ -80,6 +80,8 @@ export function createMcpServer(history: HistoryService, version: string) {
           "Omit project to use the default startup scope. It stays fixed when the client changes folders; confirm it matches the user's task before searching.",
           "For another project, pass its absolute path only if the user already granted it with --allow-project or --all-projects at startup. Tool arguments cannot grant access. If access is denied or the scope is wrong, ask the user to reconfigure and reconnect; never broaden access or search another project as a fallback.",
         ]),
+    "To browse rather than search, use list_sessions: newest-first session metadata (IDs, titles, dates, agent) with optional agent, title and updated_after/updated_before filters. It reads no transcript content.",
+    "Use list_projects to see which projects the startup grant covers, with session counts and last activity. Use file_history with a path or trailing path fragment to find sessions whose successful recorded changes touched that file before editing it.",
     "session_summary without project finds an ID in any granted project, and accepts the bare UUID a client displays.",
     "Use returned session IDs and the same project for summaries; follow next_cursor without offset for more results, including empty partial pages. Check partial, stop_reason, skipped, scope_warning and scan_progress for incomplete coverage. Empty results mean no match in the searchable recorded messages, not proof that the work never happened.",
     "No viewer window or separately running web app is required. This server does not automatically search on every prompt, remember project approvals, or request new grants interactively.",
@@ -174,6 +176,86 @@ export function createMcpServer(history: HistoryService, version: string) {
     },
     ({ id, ...page }, context) =>
       run((signal) => history.summary(id, page, signal), context.mcpReq.signal),
+  );
+  server.registerTool(
+    "list_sessions",
+    {
+      description:
+        "List recorded sessions newest first, without reading transcripts: session_id, agent, title, started/updated dates and subagent count. Use it to browse recent work, find a session by title or date range, or pick an ID for session_summary. Use search_sessions instead to find a phrase in message text. Omit project for the fixed startup scope. Follow next_cursor with unchanged filters.",
+      inputSchema: z.object({
+        ...paging,
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(25)
+          .optional()
+          .describe("Maximum sessions, default 10, up to 25. The byte cap may return fewer."),
+        agent: z
+          .enum(["claude", "codex"])
+          .optional()
+          .describe("Only sessions recorded by this agent."),
+        title: z
+          .string()
+          .trim()
+          .min(2)
+          .max(200)
+          .optional()
+          .describe("Literal phrase in the masked session title, ignoring case."),
+        updated_after: z
+          .string()
+          .max(40)
+          .optional()
+          .describe("ISO 8601 date or date-time; only sessions last updated at or after it."),
+        updated_before: z
+          .string()
+          .max(40)
+          .optional()
+          .describe("ISO 8601 date or date-time; only sessions last updated before it."),
+      }),
+      annotations,
+    },
+    (request, context) => run((signal) => history.sessions(request, signal), context.mcpReq.signal),
+  );
+  server.registerTool(
+    "list_projects",
+    {
+      description:
+        "List the projects this server can read, most recently active first, with session counts per agent and first/last activity dates. With --all-projects these are recorded project folders (null path means home or an unknown folder, which cannot be selected); otherwise they are the startup grants. Pass a returned path as project to the other tools. Reads no transcript content.",
+      inputSchema: z.object({
+        offset: paging.offset,
+        cursor: paging.cursor,
+        limit: z
+          .number()
+          .int()
+          .min(1)
+          .max(25)
+          .optional()
+          .describe("Maximum projects, default 10, up to 25."),
+      }),
+      annotations,
+    },
+    (request, context) => run((signal) => history.projects(request, signal), context.mcpReq.signal),
+  );
+  server.registerTool(
+    "file_history",
+    {
+      description:
+        "Find earlier sessions whose successful recorded edits or writes changed a file, newest first, before working on it. Matches an exact path or whole trailing segments (src/server.ts matches /repo/src/server.ts, not /repo/src/myserver.ts). Returns per session up to five matching turns with a terse gist, edit counts and recorded line counts. Recorded operations, not a Git diff; reads, failed calls and shell-command changes are not detected. Use session_summary with the session_id for more context.",
+      inputSchema: z.object({
+        path: z
+          .string()
+          .trim()
+          .min(2)
+          .max(512)
+          .describe("An absolute path, or a relative trailing fragment such as src/mcp/server.ts."),
+        ...paging,
+        max_snippet_chars: projection.max_snippet_chars,
+      }),
+      annotations,
+    },
+    ({ path, ...request }, context) =>
+      run((signal) => history.fileHistory(path, request, signal), context.mcpReq.signal),
   );
   return server;
 }

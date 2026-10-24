@@ -73,8 +73,10 @@ Questions and suggestions are welcome in issues; code changes are welcome throug
 
 ## Let agents consult earlier work
 
-The source preview includes a read-only MCP server with `search_sessions` and `session_summary`
-for Claude Code and Codex history. Search can include a matching recorded gist and counts in one
+The source preview includes a read-only MCP server with `search_sessions`, `session_summary`,
+`list_sessions`, `list_projects` and `file_history` for Claude Code and Codex history. Listing
+browses sessions or projects without reading transcripts, and file history finds earlier sessions
+that changed a file. Search can include a matching recorded gist and counts in one
 call; summaries can filter for relevant turns. Responses default to compact excerpts. Use
 `detail: "full"` for question/answer and change/failure detail, `fields` for selected turn facts, or
 `max_snippet_chars` for shorter text. Connection instructions tell agents when earlier work may help.

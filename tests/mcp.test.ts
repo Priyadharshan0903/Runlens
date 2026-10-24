@@ -6,6 +6,7 @@ import {
   rmSync,
   symlinkSync,
   truncateSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs";
 import { homedir, tmpdir } from "node:os";
@@ -1831,5 +1832,232 @@ describe("MCP page reporting", () => {
     } finally {
       pagination.close();
     }
+  });
+});
+
+describe("MCP session listing", () => {
+  it("lists in-scope session metadata newest first without opening transcripts", async () => {
+    const { list } = fixture();
+    const readEvents = vi.spyOn(claudeReader, "readEvents");
+    const service = track(new HistoryService(list, { project: "/work/demo" }));
+    const page = await service.sessions();
+    const results = page.results as Record<string, unknown>[];
+    expect(results.map((result) => result.session_id).sort()).toEqual([
+      "codex--later-codex",
+      "earlier-claude",
+    ]);
+    expect(results[0]).toEqual({
+      session_id: expect.any(String),
+      agent: expect.any(String),
+      title: expect.any(String),
+      started_at: expect.any(String),
+      updated_at: expect.any(String),
+      subagents: 0,
+    });
+    const updated = results.map((result) => result.updated_at as string);
+    expect([...updated].sort().reverse()).toEqual(updated);
+    expect(page).toMatchObject({ next_cursor: null, partial: false, stop_reason: "complete" });
+    expect(JSON.stringify(page)).not.toContain("OTHER_PROJECT_PRIVATE_ONLY");
+    expect(JSON.stringify(page)).not.toContain("different-project");
+    expect(readEvents).not.toHaveBeenCalled();
+    readEvents.mockRestore();
+  });
+
+  it("filters by agent, masked title and updated date", async () => {
+    const { service, claude, codex } = fixture();
+    // Both readers date sessions by mtime; pin them so the order is deterministic.
+    utimesSync(claude, new Date("2026-10-20T10:00:00Z"), new Date("2026-10-20T10:00:00Z"));
+    const rollout = join(codex, "rollout-synthetic.jsonl");
+    utimesSync(rollout, new Date("2026-10-22T10:00:00Z"), new Date("2026-10-22T10:00:00Z"));
+    const ids = async (request: Parameters<HistoryService["sessions"]>[0]) =>
+      ((await service.sessions(request)).results as { session_id: string }[]).map(
+        (result) => result.session_id,
+      );
+    expect(await ids({ agent: "codex" })).toEqual(["codex--later-codex"]);
+    expect(await ids({ title: "FIX THE  recurring" })).toEqual(["earlier-claude"]);
+    expect(await ids({ updated_after: "2026-10-21" })).toEqual(["codex--later-codex"]);
+    expect(await ids({ updated_before: "2026-10-21" })).toEqual(["earlier-claude"]);
+    expect(await ids({ updated_after: "2099-01-01" })).toEqual([]);
+    await expect(service.sessions({ updated_after: "yesterday" })).rejects.toMatchObject({
+      code: "invalid_date",
+    });
+    await expect(
+      service.sessions({ updated_after: "2026-10-23", updated_before: "2026-10-22" }),
+    ).rejects.toMatchObject({ code: "invalid_date" });
+    await expect(service.sessions({ limit: 26 })).rejects.toMatchObject({ code: "invalid_page" });
+  });
+
+  it("names each project with --all-projects and pages without repeats", async () => {
+    const { list } = fixture();
+    const all = track(new HistoryService(list, { allProjects: true }));
+    const first = await all.sessions({ limit: 2 });
+    const results = first.results as { session_id: string; project?: string }[];
+    expect(results).toHaveLength(2);
+    expect(results.every((result) => result.project)).toBe(true);
+    const rest = await all.sessions({ limit: 2, cursor: first.next_cursor! });
+    const more = rest.results as { session_id: string }[];
+    expect(rest.next_cursor).toBeNull();
+    expect(new Set([...results, ...more].map((result) => result.session_id))).toEqual(
+      new Set(["codex--later-codex", "different-project", "earlier-claude"]),
+    );
+  });
+});
+
+describe("MCP project listing", () => {
+  it("reports startup grants with per-agent counts, never other recorded projects", async () => {
+    const { service } = fixture();
+    const page = await service.projects();
+    expect(page).toMatchObject({ all_projects: false, next_cursor: null, partial: false });
+    expect(page.results).toEqual([
+      {
+        path: "/work/demo",
+        sessions: 2,
+        agents: { claude: 1, codex: 1 },
+        first_started_at: expect.any(String),
+        last_updated_at: expect.any(String),
+      },
+    ]);
+    expect(JSON.stringify(page)).not.toContain("/personal/demo");
+  });
+
+  it("groups every recorded project with --all-projects and pages them", async () => {
+    const { list } = fixture();
+    const all = track(new HistoryService(list, { allProjects: true }));
+    const first = await all.projects({ limit: 1 });
+    expect(first.all_projects).toBe(true);
+    const rest = await all.projects({ limit: 1, cursor: first.next_cursor! });
+    const results = [...(first.results as unknown[]), ...(rest.results as unknown[])] as {
+      path: string;
+      sessions: number;
+    }[];
+    expect(rest.next_cursor).toBeNull();
+    expect(Object.fromEntries(results.map((result) => [result.path, result.sessions]))).toEqual({
+      "/work/demo": 2,
+      "/personal/demo": 1,
+    });
+  });
+});
+
+describe("MCP file history", () => {
+  it("finds successful recorded changes by exact path or trailing segments", async () => {
+    const { service } = fixture();
+    for (const path of [
+      "search.ts",
+      "demo/search.ts",
+      "./demo/search.ts",
+      "/work/demo/search.ts",
+    ]) {
+      const page = await service.fileHistory(path);
+      expect(page.results).toEqual([
+        expect.objectContaining({
+          session_id: "earlier-claude",
+          agent: "claude",
+          matching_turns: 1,
+          omitted_turns: 0,
+          turns: [
+            {
+              origin: expect.any(String),
+              at: expect.any(String),
+              gist: {
+                from: "recorded_answer",
+                text: expect.stringContaining("search test passed"),
+              },
+              files: [
+                { path: "/work/demo/search.ts", edits: 1, added: expect.any(Number), removed: 1 },
+              ],
+            },
+          ],
+        }),
+      ]);
+    }
+    for (const path of ["arch.ts", "/demo/search.ts", "search.tsx"])
+      expect((await service.fileHistory(path)).results).toEqual([]);
+  });
+
+  it("resolves relative recorded patch paths against the session folder", async () => {
+    const { service, codex } = fixture();
+    const timestamp = "2026-10-23T10:00:00.000Z";
+    const item = (payload: unknown) => ({ type: "response_item", timestamp, payload });
+    writeFileSync(
+      join(codex, "rollout-patch.jsonl"),
+      jsonl([
+        {
+          type: "session_meta",
+          timestamp,
+          payload: { id: "patch-codex", cwd: "/work/demo", source: "cli" },
+        },
+        item({
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "Patch the server" }],
+        }),
+        item({
+          type: "custom_tool_call",
+          call_id: "patch",
+          name: "apply_patch",
+          input: [
+            "*** Begin Patch",
+            "*** Update File: src/server.ts",
+            "@@",
+            "-old",
+            "+new",
+            "*** End Patch",
+          ].join("\n"),
+        }),
+        item({ type: "custom_tool_call_output", call_id: "patch", output: "Success" }),
+      ]),
+    );
+    for (const path of ["src/server.ts", "server.ts", "/work/demo/src/server.ts"]) {
+      const page = await service.fileHistory(path);
+      expect(page.results, path).toEqual([
+        expect.objectContaining({
+          session_id: "codex--patch-codex",
+          turns: [
+            expect.objectContaining({
+              files: [{ path: "src/server.ts", edits: 1, added: 1, removed: 1 }],
+            }),
+          ],
+        }),
+      ]);
+    }
+    for (const path of ["/other/src/server.ts", "/work/demo/server.ts"])
+      expect((await service.fileHistory(path)).results, path).toEqual([]);
+  });
+
+  it("ignores failed edits and out-of-scope sessions", async () => {
+    const history = fixture();
+    history.writeSession("failed-edit", [
+      prompt("Try editing the config"),
+      call("bad", "Edit", { file_path: "/work/demo/config.ts", old_string: "a", new_string: "b" }),
+      result("bad", "String not found", { error: true }),
+    ]);
+    history.writeSession("elsewhere-edit", [
+      { ...prompt("Edit config elsewhere"), cwd: "/personal/demo" },
+      {
+        ...call("ok", "Edit", {
+          file_path: "/personal/demo/config.ts",
+          old_string: "a",
+          new_string: "b",
+        }),
+        cwd: "/personal/demo",
+      },
+      { ...result("ok", "done"), cwd: "/personal/demo" },
+    ]);
+    expect((await history.service.fileHistory("config.ts")).results).toEqual([]);
+    const all = track(new HistoryService(history.list, { allProjects: true }));
+    const everywhere = await all.fileHistory("config.ts");
+    expect(everywhere.results).toEqual([
+      expect.objectContaining({ session_id: "elsewhere-edit", project: "/personal/demo" }),
+    ]);
+  });
+
+  it("rejects invalid paths before discovery", async () => {
+    const list = vi.fn(async () => ({ sessions: [], files: new Map() }));
+    const service = new HistoryService(list, { project: "/work/demo" });
+    await expect(service.fileHistory(" a ")).rejects.toMatchObject({ code: "invalid_path" });
+    await expect(service.fileHistory("x".repeat(513))).rejects.toMatchObject({
+      code: "invalid_path",
+    });
+    expect(list).not.toHaveBeenCalled();
   });
 });
