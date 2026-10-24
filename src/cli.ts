@@ -16,7 +16,7 @@ const HELP = `runlens: inspect your local agent sessions
 
 Usage
   npx runlens [options]
-  runlens mcp [--project <path>] [--allow-project <path>] [history options]
+  runlens mcp [--project <path>] [--allow-project <path>] [--all-projects] [history options]
 
 Options
   --dir <path>   Override Claude Code "projects" folders (repeatable).
@@ -28,6 +28,7 @@ Options
   --no-open      Don't open the browser
   --project <path>  MCP only: current project (default: working directory)
   --allow-project <path>  MCP only: allow an additional project (repeatable)
+  --all-projects    MCP only: allow every recorded project on this machine
   -v, --version  Print the version
   -h, --help     Show this help
 
@@ -46,6 +47,7 @@ async function main() {
       "no-open": { type: "boolean", default: false },
       project: { type: "string" },
       "allow-project": { type: "string", multiple: true },
+      "all-projects": { type: "boolean", default: false },
       version: { type: "boolean", short: "v" },
       help: { type: "boolean", short: "h" },
     },
@@ -53,8 +55,10 @@ async function main() {
 
   if (values.help) return console.log(HELP);
   if (values.version) return console.log(__VERSION__);
-  if (!mcp && (values.project || values["allow-project"]))
-    fail("--project and --allow-project are only available with runlens mcp.");
+  if (!mcp && (values.project || values["allow-project"] || values["all-projects"]))
+    fail("--project, --allow-project and --all-projects are only available with runlens mcp.");
+  if (values["all-projects"] && (values.project || values["allow-project"]))
+    fail("--all-projects already grants every project; drop --project and --allow-project.");
 
   const overrides: Record<string, string[] | undefined> = {
     claude: values.dir,
@@ -73,8 +77,12 @@ async function main() {
   if (mcp) {
     const { serveHistory } = await import("./mcp/server.js");
     const history = new HistoryService((signal) => listSessions(sources, signal), {
-      project: resolve(values.project ?? process.cwd()),
-      allowProjects: values["allow-project"]?.map((path) => resolve(path)),
+      ...(values["all-projects"]
+        ? { allProjects: true }
+        : {
+            project: resolve(values.project ?? process.cwd()),
+            allowProjects: values["allow-project"]?.map((path) => resolve(path)),
+          }),
     });
     await serveHistory(history, __VERSION__);
     return;

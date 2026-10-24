@@ -147,8 +147,32 @@ node /path/to/Runlens/dist/cli.js mcp \
 ```
 
 Then use `project: "/personal/other-project"` in the tool call. A tool argument cannot grant itself
-access. Grants use absolute directory paths, not project names or wildcards. No all-projects tool
-is exposed. The server opens no HTTP port and launches no browser.
+access. Grants use absolute directory paths, not project names or wildcards. The server opens no
+HTTP port and launches no browser.
+
+`session_summary` without `project` looks up the ID in every startup grant, default project first.
+It also accepts the bare ID a client displays, such as a Codex UUID without the `codex--` prefix.
+When an ID exists only outside the grants, the error says so, without returning its content or
+path, so the user knows to add a grant rather than look for another ID. `project_not_allowed`
+errors list the active grants.
+
+### All-projects access
+
+To search every recorded Claude Code and Codex session on this machine, opt in at startup:
+
+```sh
+claude mcp add --scope user --transport stdio runlens -- \
+  npx -y runlens@latest mcp --all-projects
+```
+
+With `--all-projects`, omitting `project` searches every recorded session, newest first, and each
+search result names its recorded `project`. Pass one of those absolute paths to narrow later calls.
+Home and filesystem roots are still rejected as explicit `project` values. `--all-projects` cannot
+be combined with `--project` or `--allow-project`, and a tool argument cannot select it.
+
+This is the broadest grant: excerpts from any project, including work and personal history, can
+reach the connected client and its model provider. Large libraries reach the per-call scan budget
+sooner, so follow cursors and check `partial` and `scan_progress`.
 
 ## Tools and limits
 
