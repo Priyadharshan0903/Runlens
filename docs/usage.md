@@ -57,7 +57,8 @@ transcripts are not changed by rebuilding or restarting Runlens.
 The package and CLI are named `runlens`. Downloadable builds are listed on
 [GitHub Releases](https://github.com/Priyadharshan0903/Runlens/releases). Install the published
 package with `npx runlens@latest`. The publish workflow releases the checked archive to npm and
-GitHub automatically after verification.
+GitHub automatically after verification, and mirrors it to GitHub Packages as
+`@priyadharshan0903/runlens` (see [Publishing Runlens](releases.md)).
 
 ## Session library
 

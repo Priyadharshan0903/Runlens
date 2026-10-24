@@ -1,5 +1,13 @@
 # Changelog
 
+### 2026-10-24 — GitHub Packages mirror
+
+- The publish workflow now also publishes each release to GitHub Packages as
+  `@priyadharshan0903/runlens`, so it appears in the repository's **Packages** list. It reuses the
+  checked archive, renames it to the required owner scope without rebuilding, and keeps the same
+  `latest`/`next` tag. The job runs after npm publication, independently of the GitHub release, with
+  `packages: write` limited to that job. `runlens` on npm remains the primary install.
+
 ### 2026-10-24 — All-projects MCP access and ID lookup
 
 - Add `runlens mcp --all-projects`, an opt-in startup grant for every recorded project on the

@@ -23,6 +23,21 @@ release → Run workflow**. It replaces the old draft-only `release.yml` workflo
    trusted publishing and provenance. Stable versions use `latest`; prereleases use `next`.
 4. Publish the GitHub release immediately, with generated notes and the same archive/checksum
    attached. There is no draft or separate Publish button. Prereleases are marked accordingly.
+5. Alongside the release, publish the same checked files to GitHub Packages as
+   `@priyadharshan0903/runlens`, with the same `latest`/`next` tag. GitHub's npm registry accepts
+   only scoped names, so this job renames the package inside the extracted archive without
+   rebuilding it. The `repository` field links the package to this repository's **Packages** list.
+
+GitHub Packages uses the workflow's `GITHUB_TOKEN` with `packages: write`, restricted to that job;
+no extra secret is needed. Its package is a mirror: `runlens` on npm remains the primary install.
+Installing from GitHub Packages requires a GitHub token with `read:packages`, even for a public
+package:
+
+```sh
+npm install --global @priyadharshan0903/runlens --registry=https://npm.pkg.github.com
+```
+
+See [GitHub's npm registry documentation](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-npm-registry).
 
 The publish command uses `./release/*.tgz`: the leading `./` makes the expanded archive path
 explicitly local. Without it, npm can interpret `release/runlens-<version>.tgz` as GitHub shorthand
@@ -47,12 +62,13 @@ commit both files yourself, push the changes, and run the workflow manually on t
 The workflow publishes only when invoked by a version-tag push or a manual run; ordinary commits
 continue to run CI without releasing.
 
-GitHub publication waits for npm publication to succeed. If the final GitHub job fails after npm
-succeeds, use **Re-run failed jobs** to retry that job without publishing the npm version again.
+GitHub publication waits for npm publication to succeed. If the GitHub release or GitHub Packages
+job fails after npm succeeds, use **Re-run failed jobs** to retry it without publishing the npm
+version again. The two GitHub jobs are independent, so one failing does not block the other.
 Do not rerun the whole successful npm publication for the same version. GitHub and npm are separate
 services, so the workflow cannot roll back an npm publication if GitHub publication fails.
 
-The workflows use pinned action commits. CI and packaging have read access; only the final GitHub
-job gets release write access. Checked workflow artifacts are retained for 14 days; assets attached
+The workflows use pinned action commits. CI and packaging have read access; only the GitHub release
+job gets release write access, and only the GitHub Packages job gets package write access. Checked workflow artifacts are retained for 14 days; assets attached
 to the published release remain available separately. Packaging files use the ignored `release/`
 directory.
