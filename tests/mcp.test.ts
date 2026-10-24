@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { listSessions } from "../src/core/discover.js";
 import { HistoryService } from "../src/mcp/history.js";
+import type { TurnField } from "../src/mcp/projection.js";
 import { ScanLimiter } from "../src/mcp/limiter.js";
 import {
   CURSOR_IDLE_MS,
@@ -183,7 +184,9 @@ describe("MCP safety contract", () => {
     const response = JSON.stringify(await service.search("timeout"));
     expect(response).toContain("earlier-claude");
     expect(response).not.toContain("sibling");
-    await expect(service.summary("ancestor")).rejects.toMatchObject({ code: "session_not_found" });
+    await expect(service.summary("ancestor", { detail: "full" })).rejects.toMatchObject({
+      code: "session_not_found",
+    });
   });
 
   it("does not open out-of-scope transcripts or reveal whether their IDs exist", async () => {
@@ -194,11 +197,13 @@ describe("MCP safety contract", () => {
     forbidden.reader = { ...claudeReader, scanEvents: undefined, readEvents: read };
     const service = new HistoryService(async () => listing, { project: "/work/demo" });
     await service.search("timeout");
-    await expect(service.summary("different-project")).rejects.toMatchObject({
+    await expect(service.summary("different-project", { detail: "full" })).rejects.toMatchObject({
       code: "session_not_found",
     });
-    await expect(service.summary("missing")).rejects.toMatchObject({ code: "session_not_found" });
-    await expect(service.summary("../../private")).rejects.toMatchObject({
+    await expect(service.summary("missing", { detail: "full" })).rejects.toMatchObject({
+      code: "session_not_found",
+    });
+    await expect(service.summary("../../private", { detail: "full" })).rejects.toMatchObject({
       code: "invalid_session",
     });
     expect(read).not.toHaveBeenCalled();
@@ -228,9 +233,11 @@ describe("MCP safety contract", () => {
         expect(JSON.stringify(await service.search(query, { include_turns }))).not.toContain(
           '"session_id"',
         );
-      expect((await service.summary("earlier-claude", { query })).turns).toEqual([]);
+      expect((await service.summary("earlier-claude", { detail: "full", query })).turns).toEqual(
+        [],
+      );
     }
-    const summary = JSON.stringify(await service.summary("earlier-claude"));
+    const summary = JSON.stringify(await service.summary("earlier-claude", { detail: "full" }));
     expect(summary).not.toMatch(
       /WEB_FETCH_INJECTION_ONLY|RAW_ERROR_OUTPUT_ONLY|synthetic-private-value/,
     );
@@ -247,7 +254,7 @@ describe("MCP safety contract", () => {
       "codex",
     ]);
     const summary = JSON.parse(
-      JSON.stringify(await service.summary("earlier-claude", { limit: 1 })),
+      JSON.stringify(await service.summary("earlier-claude", { detail: "full", limit: 1 })),
     );
     expect(summary).toMatchObject({
       session_id: "earlier-claude",
@@ -264,7 +271,11 @@ describe("MCP safety contract", () => {
     });
     const next = JSON.parse(
       JSON.stringify(
-        await service.summary("earlier-claude", { offset: summary.next_offset, limit: 1 }),
+        await service.summary("earlier-claude", {
+          detail: "full",
+          offset: summary.next_offset,
+          limit: 1,
+        }),
       ),
     );
     expect(next.turns[0].asked).toBe("What should we do next?");
@@ -311,7 +322,7 @@ describe("MCP safety contract", () => {
       ]),
     );
     const summary = JSON.parse(
-      JSON.stringify(await service.summary("codex--later-codex", { limit: 5 })),
+      JSON.stringify(await service.summary("codex--later-codex", { detail: "full", limit: 5 })),
     );
     expect(summary.turns).toHaveLength(2);
     expect(summary.turns[1]).toMatchObject({
@@ -331,7 +342,7 @@ describe("MCP safety contract", () => {
       say("A child recorded answer"),
     ]);
     const claude = JSON.parse(
-      JSON.stringify(await service.summary("earlier-claude", { limit: 5 })),
+      JSON.stringify(await service.summary("earlier-claude", { detail: "full", limit: 5 })),
     );
     expect(claude.turns[2]).toMatchObject({
       origin: "subagent",
@@ -352,7 +363,7 @@ describe("MCP safety contract", () => {
       "distinct-late-match",
     );
     expect(JSON.stringify(await service.search(secret))).not.toContain('"session_id"');
-    expect(JSON.stringify(await service.summary("long"))).not.toContain(secret);
+    expect(JSON.stringify(await service.summary("long", { detail: "full" }))).not.toContain(secret);
   });
 
   it("paginates search without dropping or repeating session matches", async () => {
@@ -399,7 +410,7 @@ describe("MCP safety contract", () => {
       readEvents: read,
     };
     const service = new HistoryService(async () => listing, { project: "/work/demo" });
-    expect(await service.summary("earlier-claude")).toMatchObject({
+    expect(await service.summary("earlier-claude", { detail: "full" })).toMatchObject({
       turns: [],
       partial: true,
       next_cursor: null,
@@ -505,7 +516,7 @@ describe("MCP safety contract", () => {
     truncateSync(claude, MAX_TRANSCRIPT_BYTES + 1);
     listing.files.get("earlier-claude")!.reader = { ...claudeReader, scanEvents: undefined };
     const service = track(new HistoryService(async () => listing, { project: "/work/demo" }));
-    expect(await service.summary("earlier-claude")).toMatchObject({
+    expect(await service.summary("earlier-claude", { detail: "full" })).toMatchObject({
       turns: [{ origin: "subagent", asked: "Child question", recorded_answer: "Child answer" }],
       next_cursor: null,
       partial: true,
@@ -529,7 +540,7 @@ describe("MCP safety contract", () => {
       readEvents: read,
     };
     const service = track(new HistoryService(async () => listing, { project: "/work/demo" }));
-    expect(await service.summary("earlier-claude")).toMatchObject({
+    expect(await service.summary("earlier-claude", { detail: "full" })).toMatchObject({
       turns: [],
       partial: true,
       next_cursor: null,
@@ -614,23 +625,29 @@ describe("MCP safety contract", () => {
       },
     };
     const service = track(new HistoryService(async () => listing, { project: "/work/demo" }));
-    const first = await service.summary("earlier-claude", { limit: 1 });
+    const first = await service.summary("earlier-claude", { detail: "full", limit: 1 });
     expect(first).toMatchObject({
       turns: [{ asked: "First question", recorded_answer: "answer 0" }],
     });
     expect(reads).toBe(3);
     expect(closed).toBe(false);
     const paused = await service.summary("earlier-claude", {
+      detail: "full",
       cursor: first.next_cursor!,
       limit: 1,
     });
     expect(paused).toMatchObject({ turns: [], partial: true, stop_reason: "events" });
     const second = await service.summary("earlier-claude", {
+      detail: "full",
       cursor: paused.next_cursor!,
       limit: 1,
     });
     expect(second).toMatchObject({ turns: [{ asked: "Long second question" }] });
-    const last = await service.summary("earlier-claude", { cursor: second.next_cursor!, limit: 1 });
+    const last = await service.summary("earlier-claude", {
+      detail: "full",
+      cursor: second.next_cursor!,
+      limit: 1,
+    });
     expect(last).toMatchObject({
       turns: [{ asked: "Last question", recorded_answer: "answer 0" }],
       next_cursor: null,
@@ -658,7 +675,7 @@ describe("MCP safety contract", () => {
       service.search("timeout", { cursor: first.next_cursor!, project: "/private/no-grant" }),
     ).rejects.toMatchObject({ code: "project_not_allowed" });
     await expect(
-      service.summary("earlier-claude", { cursor: first.next_cursor! }),
+      service.summary("earlier-claude", { detail: "full", cursor: first.next_cursor! }),
     ).rejects.toMatchObject({ code: "invalid_cursor" });
     await expect(
       service.search("timeout", { cursor: first.next_cursor!, offset: 0 }),
@@ -683,9 +700,13 @@ describe("MCP safety contract", () => {
       readEvents: read,
     };
     const service = track(new HistoryService(async () => listing, { project: "/work/demo" }));
-    const first = await service.summary("wide-summary", { limit: 5 });
+    const first = await service.summary("wide-summary", { detail: "full", limit: 5 });
     expect(first.stop_reason).toBe("response_bytes");
-    const second = await service.summary("wide-summary", { cursor: first.next_cursor!, limit: 5 });
+    const second = await service.summary("wide-summary", {
+      detail: "full",
+      cursor: first.next_cursor!,
+      limit: 5,
+    });
     expect(second.next_cursor).toBeNull();
     for (const page of [first, second])
       expect(Buffer.byteLength(JSON.stringify(page))).toBeLessThanOrEqual(MAX_RESPONSE_BYTES);
@@ -717,14 +738,14 @@ describe("MCP safety contract", () => {
     };
     vi.useFakeTimers();
     const service = track(new HistoryService(async () => listing, { project: "/work/demo" }));
-    const first = await service.summary("earlier-claude", { limit: 1 });
+    const first = await service.summary("earlier-claude", { detail: "full", limit: 1 });
     expect(closed).toBe(false);
     await vi.advanceTimersByTimeAsync(CURSOR_IDLE_MS - 1);
     expect(closed).toBe(false);
     await vi.advanceTimersByTimeAsync(1);
     expect(closed).toBe(true);
     await expect(
-      service.summary("earlier-claude", { cursor: first.next_cursor! }),
+      service.summary("earlier-claude", { detail: "full", cursor: first.next_cursor! }),
     ).rejects.toMatchObject({ code: "invalid_cursor" });
   });
 
@@ -740,22 +761,27 @@ describe("MCP safety contract", () => {
     };
     vi.useFakeTimers();
     const service = track(new HistoryService(async () => listing, { project: "/work/demo" }));
-    let page = await service.summary("earlier-claude", { limit: 1 });
+    let page = await service.summary("earlier-claude", { detail: "full", limit: 1 });
     const step = CURSOR_IDLE_MS - 1;
     let elapsed = 0;
     for (; elapsed + step < CURSOR_MAX_AGE_MS; elapsed += step) {
       await vi.advanceTimersByTimeAsync(step);
-      page = await service.summary("earlier-claude", { cursor: page.next_cursor!, limit: 1 });
+      page = await service.summary("earlier-claude", {
+        detail: "full",
+        cursor: page.next_cursor!,
+        limit: 1,
+      });
     }
     await vi.advanceTimersByTimeAsync(step);
     await expect(
-      service.summary("earlier-claude", { cursor: page.next_cursor!, limit: 1 }),
+      service.summary("earlier-claude", { detail: "full", cursor: page.next_cursor!, limit: 1 }),
     ).rejects.toMatchObject({
       code: "invalid_cursor",
       message: expect.stringContaining("next_offset"),
     });
     // The legacy offset still resumes where the expired cursor stopped.
     const resumed = await service.summary("earlier-claude", {
+      detail: "full",
       offset: page.next_offset!,
       limit: 1,
     });
@@ -785,8 +811,8 @@ describe("MCP safety contract", () => {
 
   it("shares one continuation between duplicate concurrent resumes", async () => {
     const { service } = fixture();
-    const first = await service.summary("earlier-claude", { limit: 1 });
-    const request = { cursor: first.next_cursor!, limit: 1 };
+    const first = await service.summary("earlier-claude", { detail: "full", limit: 1 });
+    const request = { cursor: first.next_cursor!, limit: 1, detail: "full" as const };
     const [a, b] = await Promise.all([
       service.summary("earlier-claude", request),
       service.summary("earlier-claude", request),
@@ -794,7 +820,7 @@ describe("MCP safety contract", () => {
     expect(a).toBe(b);
     expect(a).toMatchObject({ turns: [{ asked: "What should we do next?" }] });
     await expect(
-      service.summary("earlier-claude", { cursor: first.next_cursor!, limit: 2 }),
+      service.summary("earlier-claude", { detail: "full", cursor: first.next_cursor!, limit: 2 }),
     ).rejects.toMatchObject({ code: "invalid_cursor" });
   });
 
@@ -811,11 +837,15 @@ describe("MCP safety contract", () => {
       result("patch", "Recorded success"),
       say("Second answer"),
     ]);
-    const first = await service.summary("late-tool", { limit: 1 });
+    const first = await service.summary("late-tool", { detail: "full", limit: 1 });
     expect(first).toMatchObject({
       turns: [{ asked: "First question", changes: [{ path: "/work/demo/late.ts" }] }],
     });
-    const second = await service.summary("late-tool", { cursor: first.next_cursor!, limit: 1 });
+    const second = await service.summary("late-tool", {
+      detail: "full",
+      cursor: first.next_cursor!,
+      limit: 1,
+    });
     expect(second).toMatchObject({
       turns: [{ asked: "Second question", recorded_answer: "Second answer" }],
       next_cursor: null,
@@ -844,19 +874,23 @@ describe("MCP safety contract", () => {
       },
     };
     const service = track(new HistoryService(async () => listing, { project: "/work/demo" }));
-    const first = await service.summary("earlier-claude", { limit: 1 }, initial.signal);
+    const first = await service.summary(
+      "earlier-claude",
+      { detail: "full", limit: 1 },
+      initial.signal,
+    );
     initial.abort();
     expect(closed).toBe(false);
     await expect(
       service.summary(
         "earlier-claude",
-        { cursor: first.next_cursor!, limit: 1 },
+        { detail: "full", cursor: first.next_cursor!, limit: 1 },
         continuation.signal,
       ),
     ).rejects.toMatchObject({ name: "AbortError" });
     expect(closed).toBe(true);
     await expect(
-      service.summary("earlier-claude", { cursor: first.next_cursor!, limit: 1 }),
+      service.summary("earlier-claude", { detail: "full", cursor: first.next_cursor!, limit: 1 }),
     ).rejects.toMatchObject({ code: "invalid_cursor" });
   });
 
@@ -885,7 +919,9 @@ describe("MCP safety contract", () => {
       },
     };
     const service = new HistoryService(async () => listing, { project: "/work/demo" });
-    await expect(service.summary("earlier-claude", {}, active.signal)).rejects.toMatchObject({
+    await expect(
+      service.summary("earlier-claude", { detail: "full" }, active.signal),
+    ).rejects.toMatchObject({
       name: "AbortError",
     });
     expect(closed).toBe(true);
@@ -955,6 +991,338 @@ describe("MCP scan admission", () => {
   });
 });
 
+describe("compact MCP output", () => {
+  it("defaults to bounded extractive gists and exact counts, with smaller responses than full detail", async () => {
+    const { service, writeSession } = fixture();
+    const question = "Investigate the retry behavior. " + "Question context. ".repeat(70);
+    const answer =
+      "Recorded outcome: kept the cancellation check. " + "Recorded evidence. ".repeat(70);
+    writeSession("compact", [
+      prompt(question),
+      ...Array.from({ length: 12 }, (_, i) => [
+        call(`edit-${i}`, "Edit", {
+          file_path: `/work/demo/file-${i % 3}.ts`,
+          old_string: "old",
+          new_string: "new",
+        }),
+        result(`edit-${i}`, "success"),
+      ]).flat(),
+      call("failure", "Bash", { command: "synthetic command" }),
+      result("failure", "RAW_PRIVATE_FAILURE", { error: true }),
+      say(answer),
+    ]);
+    const terse = await service.summary("compact");
+    expect(terse.turns).toEqual([
+      {
+        origin: "session",
+        at: expect.any(String),
+        gist: { from: "recorded_answer", text: excerpt(answer, 200) },
+        changed_files: 3,
+        failure_count: 1,
+        tool_calls: 13,
+      },
+    ]);
+    const full = await service.summary("compact", { detail: "full" });
+    expect(full.turns).toMatchObject([
+      {
+        asked: excerpt(question, 480),
+        recorded_answer: excerpt(answer, 800),
+        changes: expect.any(Array),
+        omitted_changes: 4,
+        failures: [{ tool: "Bash", status: "error" }],
+        tool_calls: 13,
+      },
+    ]);
+    expect(Buffer.byteLength(JSON.stringify(terse))).toBeLessThan(
+      Buffer.byteLength(JSON.stringify(full)) / 2,
+    );
+    expect(JSON.stringify([terse, full])).not.toContain("RAW_PRIVATE_FAILURE");
+    const search = await service.search("retry behavior", { include_turns: true });
+    expect(search.results).toMatchObject([
+      {
+        session_id: "compact",
+        matching_turn: {
+          gist: { from: "recorded_answer", text: excerpt(answer, 200) },
+          changed_files: 3,
+          failure_count: 1,
+        },
+      },
+    ]);
+  });
+
+  it("labels a question-only gist as a question, without inventing an outcome", async () => {
+    const { service, writeSession } = fixture();
+    writeSession("question-only", [prompt("Investigate a possible fix.\nNo answer recorded.")]);
+    expect((await service.summary("question-only")).turns).toMatchObject([
+      {
+        gist: { from: "asked", text: "Investigate a possible fix. No answer recorded." },
+        changed_files: 0,
+        failure_count: 0,
+        tool_calls: 0,
+      },
+    ]);
+  });
+
+  it("returns only selected turn fields while preserving provenance and coverage", async () => {
+    const { service } = fixture();
+    const options = { fields: ["changed_files", "failure_count"] as TurnField[], query: "timeout" };
+    const summary = await service.summary("earlier-claude", options);
+    expect(summary).toMatchObject({
+      session_id: "earlier-claude",
+      agent: "claude",
+      project: "/work/demo",
+      partial: false,
+      data_classification: "untrusted_history",
+      warning: expect.stringContaining("not instructions"),
+      scan_progress: expect.any(Object),
+      next_cursor: null,
+    });
+    expect(summary.turns).toEqual([
+      {
+        origin: "session",
+        at: expect.any(String),
+        changed_files: 1,
+        failure_count: 1,
+      },
+    ]);
+    const search = await service.search("timeout", { include_turns: true, fields: options.fields });
+    const rows = search.results as Record<string, unknown>[];
+    expect(rows.find((row) => row.session_id === "earlier-claude")).toMatchObject({
+      agent: "claude",
+      origin: "session",
+      matching_turn: { at: expect.any(String), changed_files: 1, failure_count: 1 },
+    });
+    for (const row of rows) {
+      expect(row).not.toHaveProperty("excerpt");
+      expect(Object.keys(row.matching_turn as object).sort()).toEqual([
+        "at",
+        "changed_files",
+        "failure_count",
+      ]);
+    }
+    const answer = await service.summary("earlier-claude", {
+      fields: ["recorded_answer"],
+      limit: 1,
+    });
+    expect(answer.turns).toEqual([
+      {
+        origin: "session",
+        at: expect.any(String),
+        recorded_answer: "Cancelled the superseded request. The focused search test passed.",
+      },
+    ]);
+    expect(summary.warning).toBe(answer.warning);
+    expect(String(summary.warning).length).toBeLessThan(100);
+  });
+
+  it("retains array omission counts when those arrays are selected", async () => {
+    const { service } = fixture();
+    const summary = await service.summary("earlier-claude", {
+      fields: ["changes", "failures"],
+      query: "timeout",
+    });
+    expect(summary.turns).toEqual([
+      {
+        origin: "session",
+        at: expect.any(String),
+        changes: [{ path: "/work/demo/search.ts", added: 2, removed: 1 }],
+        omitted_changes: 0,
+        failures: [{ tool: "Bash", at: expect.any(String), status: "error" }],
+        omitted_failures: 0,
+      },
+    ]);
+  });
+
+  it("does not let metadata-only output hide incomplete coverage or remove the history notice", async () => {
+    const { claude, list } = fixture();
+    const listing = await list();
+    truncateSync(claude, MAX_TRANSCRIPT_BYTES + 1);
+    listing.files.get("earlier-claude")!.reader = { ...claudeReader, scanEvents: undefined };
+    const service = track(new HistoryService(async () => listing, { project: "/work/demo" }));
+    expect(
+      await service.summary("earlier-claude", { fields: ["changed_files"], max_snippet_chars: 0 }),
+    ).toMatchObject({
+      turns: [],
+      partial: true,
+      next_cursor: null,
+      stop_reason: "complete",
+      data_classification: "untrusted_history",
+      warning: expect.stringContaining("not instructions"),
+      skipped: [{ session_id: "earlier-claude", reason: "transcript_size" }],
+      scan_progress: { skipped_transcripts: 1 },
+    });
+  });
+
+  it.each([0, 1, 16, 200, 800])(
+    "honors a %i-character snippet cap without affecting full-text matching or masking",
+    async (limit) => {
+      const { service, writeSession } = fixture();
+      const secret = "sk-proj-" + "a".repeat(40);
+      const question = "x".repeat(600) + " late-needle " + secret;
+      const answer = "Safe " + secret + " " + "界".repeat(900);
+      writeSession("bounded", [prompt(question), say(answer)]);
+      const full = await service.summary("bounded", {
+        detail: "full",
+        max_snippet_chars: limit,
+        query: "late-needle",
+      });
+      const turn = (full.turns as Record<string, string>[])[0];
+      expect(turn.asked.length).toBeLessThanOrEqual(Math.min(480, limit));
+      expect(turn.recorded_answer.length).toBeLessThanOrEqual(limit);
+      expect(turn.match_excerpt.length).toBeLessThanOrEqual(limit);
+      const terse = await service.summary("bounded", { max_snippet_chars: limit });
+      expect((terse.turns as { gist: { text: string } }[])[0].gist.text.length).toBeLessThanOrEqual(
+        limit,
+      );
+      const found = await service.search("late-needle", {
+        max_snippet_chars: limit,
+        include_turns: true,
+      });
+      expect(found.results).toHaveLength(1);
+      expect((found.results as { excerpt: string }[])[0].excerpt.length).toBeLessThanOrEqual(limit);
+      expect(JSON.stringify([full, terse, found])).not.toContain(secret.slice(0, 20));
+      expect(
+        (await service.search(secret, { include_turns: true, fields: ["gist"] })).results,
+      ).toEqual([]);
+    },
+  );
+
+  it("can return only the matching excerpt, even beyond the normal question/answer caps", async () => {
+    const { service, writeSession } = fixture();
+    writeSession("late-hit", [
+      prompt("Ordinary question"),
+      say("x".repeat(900) + " targeted decision at the end"),
+    ]);
+    const summary = await service.summary("late-hit", {
+      query: "targeted decision",
+      fields: ["match_excerpt"],
+      max_snippet_chars: 30,
+    });
+    expect(summary.turns).toEqual([
+      {
+        origin: "session",
+        at: expect.any(String),
+        match_excerpt: expect.stringContaining("targeted decision"),
+      },
+    ]);
+    const search = await service.search("targeted decision", {
+      include_turns: true,
+      fields: ["match_excerpt"],
+      max_snippet_chars: 30,
+    });
+    expect(search.results).toMatchObject([
+      {
+        matching_turn: { match_excerpt: expect.stringContaining("targeted decision") },
+      },
+    ]);
+  });
+
+  it("does not split an emoji when a short character cap cuts through it", async () => {
+    const { service, writeSession } = fixture();
+    writeSession("emoji", [prompt("Emoji question"), say("😀 outcome")]);
+    const response = await service.summary("emoji", {
+      fields: ["recorded_answer"],
+      max_snippet_chars: 2,
+    });
+    expect(response.turns).toMatchObject([{ recorded_answer: "…" }]);
+  });
+
+  it("validates projection options before discovery", async () => {
+    const list = vi.fn(async () => ({ sessions: [], files: new Map() }));
+    const service = track(new HistoryService(list, { project: "/work/demo" }));
+    for (const request of [
+      { detail: "invented" },
+      { fields: [] },
+      { fields: ["raw_tool_output"] },
+      { fields: ["gist", "gist"] },
+      { max_snippet_chars: -1 },
+      { max_snippet_chars: 801 },
+      { max_snippet_chars: 1.5 },
+      { max_snippet_chars: NaN },
+    ]) {
+      await expect(service.summary("id", request as never)).rejects.toMatchObject({
+        code: "invalid_projection",
+      });
+      await expect(
+        service.search("needle", { ...request, include_turns: true } as never),
+      ).rejects.toMatchObject({ code: "invalid_projection" });
+    }
+    await expect(service.summary("id", { fields: ["match_excerpt"] })).rejects.toMatchObject({
+      code: "invalid_projection",
+    });
+    await expect(service.search("needle", { fields: ["gist"] })).rejects.toMatchObject({
+      code: "invalid_projection",
+    });
+    expect(list).not.toHaveBeenCalled();
+  });
+
+  it("binds cursors to projection options, accepts reordered fields, and preserves retry responses", async () => {
+    const { service } = fixture();
+    const fields: TurnField[] = ["asked", "tool_calls"];
+    const first = await service.summary("earlier-claude", {
+      fields,
+      max_snippet_chars: 40,
+      limit: 1,
+    });
+    for (const override of [
+      { detail: "full" as const },
+      { fields: ["gist"] as TurnField[] },
+      { max_snippet_chars: 41 },
+    ])
+      await expect(
+        service.summary("earlier-claude", {
+          fields,
+          max_snippet_chars: 40,
+          ...override,
+          cursor: first.next_cursor!,
+          limit: 1,
+        }),
+      ).rejects.toMatchObject({ code: "invalid_cursor" });
+    const second = await service.summary("earlier-claude", {
+      fields: ["tool_calls", "asked"],
+      max_snippet_chars: 40,
+      cursor: first.next_cursor!,
+      limit: 1,
+    });
+    expect(second).toMatchObject({
+      turns: [{ asked: "What should we do next?" }],
+      next_cursor: null,
+    });
+    expect(
+      await service.summary("earlier-claude", {
+        fields,
+        max_snippet_chars: 40,
+        cursor: first.next_cursor!,
+        limit: 1,
+      }),
+    ).toEqual(second);
+    const search = await service.search("timeout", {
+      include_turns: true,
+      fields,
+      max_snippet_chars: 40,
+      limit: 1,
+    });
+    await expect(
+      service.search("timeout", {
+        include_turns: true,
+        fields,
+        max_snippet_chars: 41,
+        cursor: search.next_cursor!,
+        limit: 1,
+      }),
+    ).rejects.toMatchObject({ code: "invalid_cursor" });
+    expect(
+      await service.search("timeout", {
+        include_turns: true,
+        fields: ["tool_calls", "asked"],
+        max_snippet_chars: 40,
+        cursor: search.next_cursor!,
+        limit: 1,
+      }),
+    ).toMatchObject({ next_cursor: null });
+  });
+});
+
 describe("MCP page reporting", () => {
   it("preserves UTF-8 and CRLF across raw chunks, skips huge records, and reads a final record without newline", async () => {
     const { writeSession } = fixture();
@@ -996,7 +1364,7 @@ describe("MCP page reporting", () => {
       prompt("Next question"),
       say("Recoverable answer"),
     ]);
-    expect(await service.summary("large-turn")).toMatchObject({
+    expect(await service.summary("large-turn", { detail: "full" })).toMatchObject({
       turns: [{ asked: "Next question", recorded_answer: "Recoverable answer" }],
       partial: true,
       next_cursor: null,
@@ -1015,7 +1383,9 @@ describe("MCP page reporting", () => {
       ),
       say("Cancelled the earlier request"),
     ]);
-    expect(await service.search("retry race", { include_turns: true })).toMatchObject({
+    expect(
+      await service.search("retry race", { include_turns: true, detail: "full" }),
+    ).toMatchObject({
       results: [
         {
           matching_turn: {
@@ -1025,10 +1395,11 @@ describe("MCP page reporting", () => {
         },
       ],
     });
-    expect((await service.search("EDITOR_CONTEXT_ONLY", { include_turns: true })).results).toEqual(
-      [],
-    );
-    expect((await service.summary("ide-context")).turns).toMatchObject([
+    expect(
+      (await service.search("EDITOR_CONTEXT_ONLY", { include_turns: true, detail: "full" }))
+        .results,
+    ).toEqual([]);
+    expect((await service.summary("ide-context", { detail: "full" })).turns).toMatchObject([
       { asked: "Fix the retry race" },
     ]);
   });
@@ -1077,14 +1448,14 @@ describe("MCP page reporting", () => {
       const scan = vi.fn(reader.scanEvents!);
       listing.files.get(id)!.reader = { ...reader, scanEvents: scan };
       const service = track(new HistoryService(async () => listing, { project: "/work/demo" }));
-      const first = await service.summary(id);
+      const first = await service.summary(id, { detail: "full" });
       expect(first).toMatchObject({
         turns: [{ asked: "First question", recorded_answer: "First answer" }],
         partial: true,
         stop_reason: "total_bytes",
         scan_progress: { bytes_reserved: MAX_SCAN_BYTES, transcripts_read: 1 },
       });
-      const last = await service.summary(id, { cursor: first.next_cursor! });
+      const last = await service.summary(id, { detail: "full", cursor: first.next_cursor! });
       expect(last).toMatchObject({
         turns: [{ asked: "Late question", recorded_answer: "Tail decision" }],
         next_cursor: null,
@@ -1096,10 +1467,11 @@ describe("MCP page reporting", () => {
         },
       });
       expect(scan).toHaveBeenCalledTimes(1);
-      const search = await service.search("Tail decision", { include_turns: true });
+      const search = await service.search("Tail decision", { include_turns: true, detail: "full" });
       expect(search).toMatchObject({ results: [], partial: true, stop_reason: "total_bytes" });
       const found = await service.search("Tail decision", {
         include_turns: true,
+        detail: "full",
         cursor: search.next_cursor!,
       });
       expect(found).toMatchObject({
@@ -1125,7 +1497,7 @@ describe("MCP page reporting", () => {
       say("Later decision"),
     ]);
     writeSubagent("huge-record", "helper", [prompt("Child question"), say("Child answer")]);
-    expect(await service.summary("huge-record")).toMatchObject({
+    expect(await service.summary("huge-record", { detail: "full" })).toMatchObject({
       turns: [
         { asked: "Before", recorded_answer: "Early answer" },
         { asked: "After", recorded_answer: "Later decision" },
@@ -1159,7 +1531,7 @@ describe("MCP page reporting", () => {
       },
     };
     const service = track(new HistoryService(async () => listing, { project: "/work/demo" }));
-    expect(await service.summary("partial-parent")).toMatchObject({
+    expect(await service.summary("partial-parent", { detail: "full" })).toMatchObject({
       turns: [{ asked: "Main question", recorded_answer: "Main answer" }],
       partial: true,
       next_cursor: null,
@@ -1169,7 +1541,10 @@ describe("MCP page reporting", () => {
 
   it("includes a matching turn in search without exposing raw activity or requiring a summary", async () => {
     const { service } = fixture();
-    const rich = await service.search("recurring search timeout", { include_turns: true });
+    const rich = await service.search("recurring search timeout", {
+      include_turns: true,
+      detail: "full",
+    });
     expect(rich.results).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -1196,8 +1571,8 @@ describe("MCP page reporting", () => {
     );
     const oldFlow = [
       lean,
-      await service.summary("earlier-claude"),
-      await service.summary("codex--later-codex"),
+      await service.summary("earlier-claude", { detail: "full" }),
+      await service.summary("codex--later-codex", { detail: "full" }),
     ];
     expect(Buffer.byteLength(JSON.stringify(rich))).toBeLessThan(
       Buffer.byteLength(JSON.stringify(oldFlow)),
@@ -1219,7 +1594,7 @@ describe("MCP page reporting", () => {
       say("No message match"),
     ]);
     writeSubagent("filtered", "helper", [prompt("A child needle"), say("Child answer")]);
-    const page = await service.summary("filtered", { query: " needle " });
+    const page = await service.summary("filtered", { detail: "full", query: " needle " });
     expect(page).toMatchObject({
       next_cursor: null,
       partial: false,
@@ -1232,7 +1607,7 @@ describe("MCP page reporting", () => {
         { origin: "subagent", asked: "A child needle", recorded_answer: "Child answer" },
       ],
     });
-    const search = await service.search("needle", { include_turns: true });
+    const search = await service.search("needle", { include_turns: true, detail: "full" });
     expect(search.results).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -1242,21 +1617,37 @@ describe("MCP page reporting", () => {
         }),
       ]),
     );
-    expect((await service.summary("filtered", { query: "not present" })).turns).toEqual([]);
+    expect(
+      (await service.summary("filtered", { detail: "full", query: "not present" })).turns,
+    ).toEqual([]);
   });
 
   it("binds enriched search and filtered summary cursors to their options", async () => {
     const { service } = fixture();
-    const search = await service.search("timeout", { limit: 1, include_turns: true });
+    const search = await service.search("timeout", {
+      limit: 1,
+      include_turns: true,
+      detail: "full",
+    });
     await expect(service.search("timeout", { cursor: search.next_cursor! })).rejects.toMatchObject({
       code: "invalid_cursor",
     });
-    const summary = await service.summary("earlier-claude", { query: "the", limit: 1 });
+    const summary = await service.summary("earlier-claude", {
+      detail: "full",
+      query: "the",
+      limit: 1,
+    });
     expect(summary.next_cursor).toEqual(expect.any(String));
     await expect(
-      service.summary("earlier-claude", { cursor: summary.next_cursor!, query: "other" }),
+      service.summary("earlier-claude", {
+        detail: "full",
+        cursor: summary.next_cursor!,
+        query: "other",
+      }),
     ).rejects.toMatchObject({ code: "invalid_cursor" });
-    await expect(service.summary("earlier-claude", { query: "x" })).rejects.toMatchObject({
+    await expect(
+      service.summary("earlier-claude", { detail: "full", query: "x" }),
+    ).rejects.toMatchObject({
       code: "invalid_query",
     });
   });
@@ -1276,16 +1667,22 @@ describe("MCP page reporting", () => {
         say(`Answer ${i}`),
       ]).flat(),
     );
-    const first = await service.summary("many-turns");
+    const first = await service.summary("many-turns", { detail: "full" });
     expect(first.turns).toHaveLength(10);
     expect(first.turns).toEqual(
       expect.arrayContaining([expect.objectContaining({ tool_calls: 110 })]),
     );
     expect(first.next_offset).toBe(10);
-    const last = await service.summary("many-turns", { cursor: first.next_cursor!, limit: 50 });
+    const last = await service.summary("many-turns", {
+      detail: "full",
+      cursor: first.next_cursor!,
+      limit: 50,
+    });
     expect(last.turns).toHaveLength(2);
     expect(last.next_cursor).toBeNull();
-    await expect(service.summary("many-turns", { limit: 51 })).rejects.toMatchObject({
+    await expect(
+      service.summary("many-turns", { detail: "full", limit: 51 }),
+    ).rejects.toMatchObject({
       code: "invalid_page",
     });
   });
@@ -1299,7 +1696,7 @@ describe("MCP page reporting", () => {
       next_cursor: null,
       scope_warning: expect.stringContaining("No recorded sessions"),
     });
-    await expect(empty.summary("earlier-claude")).rejects.toMatchObject({
+    await expect(empty.summary("earlier-claude", { detail: "full" })).rejects.toMatchObject({
       code: "session_not_found",
       message: expect.stringContaining("No recorded sessions"),
     });

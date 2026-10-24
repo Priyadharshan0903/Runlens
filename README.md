@@ -74,10 +74,12 @@ Questions and suggestions are welcome in issues; code changes are welcome throug
 ## Let agents consult earlier work
 
 The source preview includes a read-only MCP server with `search_sessions` and `session_summary`
-for Claude Code and Codex history. Search can include the matching question, recorded answer and
-change/failure facts in one call; summaries can filter for relevant turns. Its connection instructions
-tell agents when earlier work may help. Your agent decides when to call the tools;
-you can ask it directly. The client starts the server, so the browser viewer can stay closed.
+for Claude Code and Codex history. Search can include a matching recorded gist and counts in one
+call; summaries can filter for relevant turns. Responses default to compact excerpts. Use
+`detail: "full"` for question/answer and change/failure detail, `fields` for selected turn facts, or
+`max_snippet_chars` for shorter text. Connection instructions tell agents when earlier work may help.
+Your agent decides when to call the tools; you can ask it directly. The client starts the server,
+so the browser viewer can stay closed.
 
 **MCP is not published to npm yet.** After a release containing MCP ships, run one of these commands
 from your project folder. No source checkout, build step, or `RUNLENS_CLI` variable will be needed.

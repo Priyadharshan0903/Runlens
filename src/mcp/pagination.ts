@@ -48,7 +48,7 @@ export class HistoryPagination {
     if (!continuation || continuation.key !== key)
       throw new HistoryError(
         "invalid_cursor",
-        "Cursor expired or does not match this query, session and project. Resume with offset set to next_offset from your last page, or restart without cursor.",
+        "Cursor expired or does not match this query, session, project or output options. Resume with offset set to next_offset from your last page, or restart without cursor.",
       );
     if (continuation.limit !== undefined && continuation.limit !== limit)
       throw new HistoryError(

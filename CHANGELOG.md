@@ -1,5 +1,27 @@
 # Changelog
 
+### 2026-10-24 — Compact MCP output controls
+
+- Default summaries and expanded search turns to 200-character extractive gists with changed-file,
+  failed-call and tool-call counts. Identify whether each gist comes from a recorded answer or its
+  question fallback; do not generate prose or infer success. `detail: "full"` retains the earlier
+  question/answer and bounded change/failure representation. Preview clients needing those fields
+  must now request full detail or select them explicitly.
+- Add validated, distinct `fields` selections for turn content and `max_snippet_chars` from 0 to 800.
+  Sparse expanded search omits its duplicate root excerpt. Keep provenance, dates, omission counts,
+  partial-coverage diagnostics and pagination outside caller-controlled field selection.
+- Bind cursors to normalized output options and canonical field selections, including retry/replay
+  paths. Keep matching on full masked messages regardless of output length or selected fields.
+- Replace the repeated long response warning with a short self-contained notice; retain the full
+  warning at initialization and coverage metadata on every page. No conversation-global warning flag.
+- Extract output validation/formatting into `src/mcp/projection.ts`. Add contract and real SDK-client
+  checks for compact defaults, field selection, character budgets, masking, coverage and cursor options.
+  A verbose synthetic fixture returns less than half the JSON bytes in terse mode versus full mode;
+  this is not a token/cost benchmark. Persistent indexes and bucket digests remain deferred.
+- Validation: all 179 server-free tests, types and the production build pass. Formatting passes
+  with the pre-existing `.claude/settings.local.json` issue excluded; that personal file remains
+  untouched and still blocks the unmodified `npm run check` command.
+
 ### 2026-10-24 — Centered history search
 
 - Center global search in the workspace with equal side tracks: project navigation on the left,

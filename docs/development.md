@@ -76,16 +76,20 @@ npm test -- tests/core.test.ts tests/features.test.ts tests/projects.test.ts tes
 Runtime dependencies: none. Requires Node 20+.
 
 The MCP source preview lives in `src/mcp/`: `safety.ts` owns project grants, masking and response
-limits; `history.ts` projects normalized reader events; `scan.ts` owns per-call work budgets and
-skip diagnostics; `pagination.ts` retains bounded process-local cursors and closes suspended readers;
+limits; `history.ts` streams normalized reader events; `projection.ts` validates output options and
+formats terse/full turn fields; `scan.ts` owns per-call work budgets and skip diagnostics;
+`pagination.ts` retains bounded process-local cursors and closes suspended readers;
 `server.ts` exposes the two stdio tools. Cursor pages keep adapter decoder state, stream completed
 turns and preserve collected entries at budget boundaries. Bind cursors to the operation, normalized
-query/session, search detail option and granted project, and keep request abort signals separate
-from reader lifetimes.
+query/session, search expansion, detail/field/snippet options and granted project. Canonicalize field
+selections before binding cursors, and keep request abort signals separate from reader lifetimes.
 Claude/Codex `scanEvents` readers emit raw-byte checkpoints even for records without normalized
 events. Keep their decoders alive across page boundaries; never impose a whole-file size skip on
 these bounded readers. Cap individual JSONL records and retained turn/parent projections instead.
-Search can attach a matching turn; summary queries filter projected messages before excerpting.
+Search can attach a matching turn; summary queries filter full masked messages before excerpting.
+Terse gists are extractive, identify their source, and do not imply task success. Select turn fields
+before allocating response arrays. Coverage/provenance and the short history notice are mandatory;
+keep the full warning in initialization. Snippet caps are characters, not model-token estimates.
 Do not route MCP through the viewer's broad transcript search, which includes raw tool content.
 The official server SDK, shared core and Zod are bundled into the CLI and their licenses into
 the notices. The client SDK is a development dependency for synthetic protocol checks. Discovery

@@ -1,9 +1,17 @@
 import type { Listing } from "../core/discover.js";
 import type { Event } from "../core/events.js";
 import { buildTurns } from "../core/tree.js";
-import type { SessionSummary, ToolStep, Turn } from "../core/types.js";
+import type { SessionSummary, Turn } from "../core/types.js";
 import type { SessionFile } from "../sources/types.js";
 import { HistoryPagination } from "./pagination.js";
+import {
+  matchExcerpt,
+  projectionOptions,
+  safeDate,
+  summarizeTurn,
+  type ProjectionOptions,
+  type ProjectionRequest,
+} from "./projection.js";
 import { ScanBudget, type ScanPause, type ScanRecord } from "./scan.js";
 import {
   excerpt,
@@ -20,7 +28,7 @@ import {
 const EMPTY_SCOPE =
   "No recorded sessions ran in this project scope, so nothing was searched. Check that the project is the folder those sessions ran in.";
 
-interface PageRequest {
+interface PageRequest extends ProjectionRequest {
   project?: string;
   offset?: number;
   limit?: number;
@@ -68,7 +76,13 @@ export class HistoryService {
     const { offset, limit } = pageRequest(request);
     const directory = requestedScope(this.policy, request.project);
     const includeTurns = request.include_turns ?? false;
-    const key = JSON.stringify(["search", directory, normalized, includeTurns]);
+    const projection = projectionOptions(request);
+    if (projection.explicitFields && !includeTurns)
+      throw new HistoryError(
+        "invalid_projection",
+        "Search fields select matching-turn content. Set include_turns: true to use fields.",
+      );
+    const key = JSON.stringify(["search", directory, normalized, includeTurns, projection.key]);
     if (request.cursor) return this.pagination.resume(request.cursor, key, limit, signal);
     const { listing, project } = await this.scoped(request.project, signal);
     const budget = new ScanBudget();
@@ -81,7 +95,7 @@ export class HistoryService {
         },
         field: "results",
         budget,
-        iterator: searchSessions(listing, normalized, budget, includeTurns),
+        iterator: searchSessions(listing, normalized, budget, includeTurns, projection),
         offset,
         remainingOffset: offset,
       },
@@ -95,8 +109,11 @@ export class HistoryService {
       throw new HistoryError("invalid_session", "Use a session ID returned by search_sessions.");
     const query = request.query === undefined ? undefined : normalizeQuery(request.query);
     const { offset, limit } = pageRequest(request, 10, 50);
+    const projection = projectionOptions(request);
+    if (projection.fields.has("match_excerpt") && query === undefined)
+      throw new HistoryError("invalid_projection", "match_excerpt requires a summary query.");
     const directory = requestedScope(this.policy, request.project);
-    const key = JSON.stringify(["summary", directory, id, query]);
+    const key = JSON.stringify(["summary", directory, id, query, projection.key]);
     if (request.cursor) return this.pagination.resume(request.cursor, key, limit, signal);
     const { listing, project } = await this.scoped(request.project, signal);
     const session = listing.sessions.find((item) => item.id === id);
@@ -115,7 +132,7 @@ export class HistoryService {
         base: { ...provenance(session), project: excerpt(project, 512) },
         field: "turns",
         budget,
-        iterator: summaryTurns(entry, budget, query),
+        iterator: summaryTurns(entry, budget, projection, query),
         offset,
         remainingOffset: offset,
       },
@@ -160,10 +177,6 @@ function pageRequest(request: PageRequest, defaultLimit = 3, maxLimit = 5) {
   return { offset, limit };
 }
 
-function safeDate(value: string | undefined) {
-  return value && Number.isFinite(Date.parse(value)) ? new Date(value).toISOString() : "";
-}
-
 function provenance(session: SessionSummary) {
   return {
     session_id: excerpt(session.id, 160),
@@ -179,6 +192,7 @@ async function* searchSessions(
   query: string,
   budget: ScanBudget,
   includeTurns: boolean,
+  projection: ProjectionOptions,
 ): AsyncGenerator<ScanRecord> {
   for (const [index, session] of listing.sessions.entries()) {
     budget.signal.throwIfAborted();
@@ -194,10 +208,17 @@ async function* searchSessions(
         const message = matchingMessage(record.turn, query);
         if (!message) continue;
         match = {
-          excerpt: matchExcerpt(message.text, query),
+          ...(!projection.explicitFields
+            ? { excerpt: matchExcerpt(message.text, query, projection.maxSnippetChars) }
+            : {}),
           origin: record.origin,
           at: safeDate(message.at),
-          matching_turn: summarizeTurn(record.turn),
+          matching_turn: {
+            ...summarizeTurn(record.turn, projection),
+            ...(projection.fields.has("match_excerpt")
+              ? { match_excerpt: matchExcerpt(message.text, query, projection.maxSnippetChars) }
+              : {}),
+          },
         };
         break;
       }
@@ -218,7 +239,7 @@ async function* searchSessions(
           const position = event.text.toLowerCase().indexOf(query);
           if (position < 0) continue;
           match = {
-            excerpt: matchExcerpt(event.text, query),
+            excerpt: matchExcerpt(event.text, query, projection.maxSnippetChars),
             origin: file.source,
             at: safeDate(event.at),
           };
@@ -234,11 +255,6 @@ async function* searchSessions(
         last: index === listing.sessions.length - 1,
       };
   }
-}
-
-function matchExcerpt(text: string, query: string) {
-  const position = text.toLowerCase().indexOf(query);
-  return text.slice(Math.max(0, position - 65), position + query.length + 130);
 }
 
 /** Only fields originating in projected messages participate, never tool metadata or outputs. */
@@ -260,6 +276,7 @@ function matchingMessage(turn: Turn, query: string) {
 async function* summaryTurns(
   entry: SessionFile,
   budget: ScanBudget,
+  projection: ProjectionOptions,
   query?: string,
 ): AsyncGenerator<ScanRecord> {
   for await (const record of recordedTurns(entry, budget)) {
@@ -274,8 +291,10 @@ async function* summaryTurns(
       kind: "item",
       value: {
         origin: record.origin,
-        ...summarizeTurn(record.turn),
-        ...(match ? { match_excerpt: matchExcerpt(match.text, query!) } : {}),
+        ...summarizeTurn(record.turn, projection),
+        ...(match && (!projection.explicitFields || projection.fields.has("match_excerpt"))
+          ? { match_excerpt: matchExcerpt(match.text, query!, projection.maxSnippetChars) }
+          : {}),
       },
       last: record.last,
     };
@@ -487,26 +506,4 @@ function projectEvent(event: Event): Event | undefined {
 
 function safeCount(value: number) {
   return Number.isSafeInteger(value) && value >= 0 ? value : 0;
-}
-
-function summarizeTurn(turn: Turn) {
-  const tools = turn.steps.filter((step): step is ToolStep => step.kind === "tool");
-  const changes = tools.flatMap((tool) =>
-    tool.result?.status === "ok" ? (tool.action.files ?? []) : [],
-  );
-  const failures = tools.filter((tool) => tool.result?.status === "error");
-  return {
-    at: safeDate(turn.at),
-    asked: excerpt(turn.prompt, 480),
-    recorded_answer: excerpt(turn.final ?? "", 800),
-    changes: changes
-      .slice(0, 8)
-      .map((file) => ({ path: file.path, added: file.added, removed: file.removed })),
-    omitted_changes: Math.max(0, changes.length - 8),
-    failures: failures
-      .slice(0, 8)
-      .map((tool) => ({ tool: tool.name, at: safeDate(tool.at), status: "error" })),
-    omitted_failures: Math.max(0, failures.length - 8),
-    tool_calls: tools.length,
-  };
 }
