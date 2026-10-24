@@ -425,9 +425,9 @@
           <article data-reveal>
             <h3>Context with boundaries</h3>
             <p>
-              Read-only, bounded results from the project you configure. Other projects need an
-              explicit startup grant. Secret masking is best effort; selected excerpts may reach
-              your agent’s model provider.
+              Read-only, bounded results from the project you configure. Other projects, or all of
+              them, need an explicit startup grant. Secret masking is best effort; selected excerpts
+              may reach your agent’s model provider.
             </p>
           </article>
           <article data-reveal>
@@ -514,6 +514,28 @@ codex mcp get runlens --json</code></pre>
           themselves. Use a different server name for another project, or configure an explicit
           <code>--allow-project</code> grant and reconnect.
         </p>
+        <div class="mcp-scope-note" data-reveal>
+          <p>
+            Want history from every project on this machine? Register once with
+            <code>--all-projects</code> instead. Search then covers every recorded session and names
+            each result’s project. This is the broadest grant: excerpts from any project may reach
+            your agent’s model provider.
+          </p>
+          <div class="command-block">
+            <pre><code id="all-projects-mcp-command">claude mcp add --scope user --transport stdio runlens -- \
+  npx -y runlens@latest mcp --all-projects
+codex mcp add runlens -- npx -y runlens@latest mcp --all-projects</code></pre>
+            <button
+              type="button"
+              class="copy-button"
+              data-copy="all-projects-mcp-command"
+              aria-label="Copy all-projects MCP registration commands"
+              hidden
+            >
+              Copy <span aria-hidden="true">↗</span>
+            </button>
+          </div>
+        </div>
         <div class="mcp-example" id="mcp-walkthrough" aria-labelledby="mcp-demo-title">
           <div class="mcp-demo-intro" data-reveal>
             <h3 id="mcp-demo-title">Follow an earlier fix.</h3>
@@ -894,7 +916,7 @@ runlens</code></pre>
         <div class="footer-wordmark" aria-hidden="true">Runlens</div>
       </div>
       <div class="footer-bottom">
-        <span>Made for the curious. Open source under MIT.</span>
+        <span>Open source under the MIT License.</span>
         <div>
           <a href="https://www.npmjs.com/package/runlens" target="_blank" rel="noopener noreferrer"
             >npm ↗</a
@@ -906,10 +928,18 @@ runlens</code></pre>
           ><a href="./THIRD_PARTY_NOTICES.md">Notices</a><a href="#">Back to top ↑</a>
         </div>
       </div>
-      <p class="independent">
-        Runlens is an independent project. Claude and OpenAI names identify supported agents and do
-        not imply endorsement.
-      </p>
+      <div class="footer-legal">
+        <p class="independent">
+          Runlens is an independent project. Claude and OpenAI names identify supported agents and
+          do not imply endorsement.
+        </p>
+        <p class="credit">
+          Built by
+          <a href="https://github.com/Priyadharshan0903" target="_blank" rel="noopener noreferrer"
+            >Priyadharshan Senthil</a
+          >
+        </p>
+      </div>
     </footer>
 
     <dialog id="screenshot-preview" class="screenshot-preview" aria-labelledby="screenshot-title">

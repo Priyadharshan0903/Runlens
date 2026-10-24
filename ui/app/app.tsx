@@ -1,5 +1,6 @@
 import {
   ArrowLeftIcon,
+  GithubLogoIcon,
   ListIcon,
   MagnifyingGlassIcon,
   SidebarSimpleIcon,
@@ -227,6 +228,16 @@ function App() {
                 <span />
                 Local only
               </span>
+              <a
+                class="icon-button"
+                href="https://github.com/Priyadharshan0903/Runlens"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="Runlens on GitHub (opens in a new tab)"
+                title="Runlens on GitHub"
+              >
+                <GithubLogoIcon size={18} />
+              </a>
             </div>
           </header>
 

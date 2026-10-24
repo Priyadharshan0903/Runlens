@@ -165,6 +165,17 @@ claude mcp add --scope user --transport stdio runlens -- \
   npx -y runlens@latest mcp --all-projects
 ```
 
+Codex keeps MCP servers in its global `~/.codex/config.toml`, so one registration covers every
+folder Codex opens:
+
+```sh
+codex mcp remove runlens   # only if an earlier registration exists
+codex mcp add runlens -- npx -y runlens@latest mcp --all-projects
+codex mcp get runlens --json
+```
+
+Either client reads both Claude Code and Codex history.
+
 With `--all-projects`, omitting `project` searches every recorded session, newest first, and each
 search result names its recorded `project`. Pass one of those absolute paths to narrow later calls.
 Home and filesystem roots are still rejected as explicit `project` values. `--all-projects` cannot
