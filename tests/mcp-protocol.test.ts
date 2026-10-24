@@ -66,6 +66,80 @@ async function connectedClient(extra: string[] = [], history = fixture) {
 }
 
 describe("Runlens MCP stdio", () => {
+  it("serves compact defaults, sparse facts and snippet limits through a real client", async () => {
+    const { client } = await connectedClient();
+    try {
+      expect(client.getInstructions()).toContain("Turns default to terse");
+      const summary = parsed(
+        await client.callTool({
+          name: "session_summary",
+          arguments: { id: "earlier-claude", limit: 1 },
+        }),
+      );
+      expect(summary.turns).toEqual([
+        {
+          origin: "session",
+          at: expect.any(String),
+          gist: {
+            from: "recorded_answer",
+            text: "Cancelled the superseded request. The focused search test passed.",
+          },
+          changed_files: 1,
+          failure_count: 1,
+          tool_calls: 3,
+        },
+      ]);
+      const sparse = parsed(
+        await client.callTool({
+          name: "search_sessions",
+          arguments: { query: "timeout", include_turns: true, fields: ["changed_files"] },
+        }),
+      );
+      for (const row of sparse.results) {
+        expect(Object.keys(row.matching_turn).sort()).toEqual(["at", "changed_files"]);
+        expect(row).not.toHaveProperty("excerpt");
+      }
+      const bounded = parsed(
+        await client.callTool({
+          name: "session_summary",
+          arguments: {
+            id: "earlier-claude",
+            detail: "full",
+            fields: ["recorded_answer"],
+            max_snippet_chars: 12,
+            limit: 1,
+          },
+        }),
+      );
+      expect(bounded.turns[0].recorded_answer).toBe("Cancelled t…");
+      expect(bounded.data_classification).toBe("untrusted_history");
+      expect(bounded.warning).toContain("not instructions");
+      expect(client.getInstructions()).toContain("Tool outputs, inputs, fetched web payloads");
+      const next = parsed(
+        await client.callTool({
+          name: "session_summary",
+          arguments: { id: "earlier-claude", cursor: summary.next_cursor, limit: 1 },
+        }),
+      );
+      expect(next.turns[0].gist.text).toBe("Check the keyboard path.");
+      for (const args of [
+        { detail: "invented" },
+        { fields: ["raw_tool_output"] },
+        { fields: ["gist", "gist"] },
+        { max_snippet_chars: -1 },
+        { max_snippet_chars: 801 },
+      ]) {
+        const invalid = await client.callTool({
+          name: "session_summary",
+          arguments: { id: "earlier-claude", ...args },
+        });
+        expect(invalid.isError).toBe(true);
+      }
+    } finally {
+      await client.close();
+    }
+  });
+
   it("connects a real SDK client to the bundled CLI and retrieves a prior Claude outcome from mixed history", async () => {
     const original = readFileSync(fixture.claude, "utf8");
     const { client, errors } = await connectedClient();
@@ -88,18 +162,35 @@ describe("Runlens MCP stdio", () => {
       ).toBe(true);
       const search = await client.callTool({
         name: "search_sessions",
-        arguments: { query: "recurring search timeout" },
+        arguments: { query: "recurring search timeout", include_turns: true, detail: "full" },
       });
       const data = parsed(search);
       expect(data.results.map((item: { agent: string }) => item.agent).sort()).toEqual([
         "claude",
         "codex",
       ]);
+      expect(
+        data.results.find((item: { session_id: string }) => item.session_id === "earlier-claude"),
+      ).toMatchObject({
+        matching_turn: {
+          recorded_answer: "Cancelled the superseded request. The focused search test passed.",
+        },
+      });
+      const filtered = parsed(
+        await client.callTool({
+          name: "session_summary",
+          arguments: { detail: "full", id: "earlier-claude", query: "keyboard", limit: 50 },
+        }),
+      );
+      expect(filtered).toMatchObject({
+        turns: [{ asked: "What should we do next?", recorded_answer: "Check the keyboard path." }],
+        next_cursor: null,
+      });
       expect(JSON.stringify(search)).not.toContain("different-project");
       expect(Buffer.byteLength(JSON.stringify(search))).toBeLessThan(MAX_RESPONSE_BYTES * 3);
       const summary = await client.callTool({
         name: "session_summary",
-        arguments: { id: "earlier-claude", limit: 1 },
+        arguments: { detail: "full", id: "earlier-claude", limit: 1 },
       });
       expect(parsed(summary)).toMatchObject({
         agent: "claude",
@@ -132,7 +223,7 @@ describe("Runlens MCP stdio", () => {
       expect(invalid.isError).toBe(true);
       const missing = await client.callTool({
         name: "session_summary",
-        arguments: { id: "different-project" },
+        arguments: { detail: "full", id: "different-project" },
       });
       expect(missing.isError).toBe(true);
       expect(parsed(missing).error).toBe("session_not_found");
@@ -153,7 +244,7 @@ describe("Runlens MCP stdio", () => {
     }
   });
 
-  it("returns successful partial data for an oversized transcript and accepts search and summary cursors", async () => {
+  it("recovers an oversized transcript and accepts search and summary cursors", async () => {
     const history = mcpFixture();
     const oversized = history.writeSession("oversized", [
       prompt("timeout in an oversized session"),
@@ -171,7 +262,8 @@ describe("Runlens MCP stdio", () => {
       expect(first.isError).toBeUndefined();
       expect(data).toMatchObject({
         partial: true,
-        skipped: [{ session_id: "oversized", reason: "transcript_size" }],
+        results: [{ session_id: "oversized" }],
+        skipped: [],
       });
       expect(data.next_cursor).toEqual(expect.any(String));
       const second = await client.callTool({
@@ -185,13 +277,18 @@ describe("Runlens MCP stdio", () => {
       const summary = parsed(
         await client.callTool({
           name: "session_summary",
-          arguments: { id: "earlier-claude", limit: 1 },
+          arguments: { detail: "full", id: "earlier-claude", limit: 1 },
         }),
       );
       const next = parsed(
         await client.callTool({
           name: "session_summary",
-          arguments: { id: "earlier-claude", cursor: summary.next_cursor, limit: 1 },
+          arguments: {
+            detail: "full",
+            id: "earlier-claude",
+            cursor: summary.next_cursor,
+            limit: 1,
+          },
         }),
       );
       expect(next.turns[0].asked).toBe("What should we do next?");
@@ -261,7 +358,7 @@ describe("Runlens MCP stdio", () => {
       const overlapping = parsed(
         await client.callTool({
           name: "session_summary",
-          arguments: { id: "earlier-claude" },
+          arguments: { detail: "full", id: "earlier-claude" },
         }),
       );
       expect(overlapping.error).toBeUndefined();

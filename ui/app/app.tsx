@@ -7,6 +7,8 @@ import {
 import { render } from "preact";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { SessionPage } from "../features/session/session-page.js";
+import { sessionNeighbors } from "../features/session/session-neighbors.js";
+import { SessionPager } from "../features/session/session-pager.js";
 import { projectName } from "../shared/format.js";
 import { Library, type SessionLibrary } from "../features/library/library.js";
 import {
@@ -67,6 +69,10 @@ function App() {
     [scopedSessions, preferences.sessions, navigationQuery, search.matches],
   );
   const selectedSummary = sessions.find((session) => session.id === selectedId);
+  const neighbors = useMemo(
+    () => sessionNeighbors(scopedSessions, selectedId),
+    [scopedSessions, selectedId],
+  );
   const navigationOpen = layoutMode === "navigation";
   const focusMode = layoutMode === "focus";
 
@@ -155,65 +161,73 @@ function App() {
 
         <div class="workspace">
           <header class="topbar">
-            <button
-              class="icon-button sidebar-toggle"
-              onClick={toggleSidebar}
-              aria-label={preferences.sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-              title={preferences.sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-              aria-expanded={!preferences.sidebarCollapsed}
-              aria-controls="workspace-sidebar"
-            >
-              <SidebarSimpleIcon size={20} />
-            </button>
-            <button
-              class="icon-button mobile-menu"
-              onClick={() => setLayoutMode(navigationOpen ? "default" : "navigation")}
-              aria-label={navigationOpen ? "Close navigation" : "Open navigation"}
-              aria-expanded={navigationOpen}
-              aria-controls="workspace-sidebar"
-            >
-              <ListIcon size={20} />
-            </button>
-            <div class="breadcrumb">
-              {selectedId ? (
-                <>
-                  <a href="#/" aria-label="Back to all sessions">
-                    <ArrowLeftIcon size={15} />
-                    Sessions
-                  </a>
-                  <span>/</span>
-                  <span class="crumb-current" title={selectedSummary?.cwd}>
-                    {selectedSummary
-                      ? sessionProject(selectedSummary).name
-                      : projectName(undefined)}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <span>Workspace</span>
-                  <span>/</span>
-                  <span class="crumb-current">
-                    {scope === "pinned" ? "Pinned sessions" : "All sessions"}
-                  </span>
-                </>
-              )}
+            <div class="topbar-location">
+              <button
+                class="icon-button sidebar-toggle"
+                onClick={toggleSidebar}
+                aria-label={preferences.sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                title={preferences.sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+                aria-expanded={!preferences.sidebarCollapsed}
+                aria-controls="workspace-sidebar"
+              >
+                <SidebarSimpleIcon size={20} />
+              </button>
+              <button
+                class="icon-button mobile-menu"
+                onClick={() => setLayoutMode(navigationOpen ? "default" : "navigation")}
+                aria-label={navigationOpen ? "Close navigation" : "Open navigation"}
+                aria-expanded={navigationOpen}
+                aria-controls="workspace-sidebar"
+              >
+                <ListIcon size={20} />
+              </button>
+              <div class="breadcrumb">
+                {selectedId ? (
+                  <>
+                    <a href="#/" aria-label="Back to all sessions">
+                      <ArrowLeftIcon size={15} />
+                      Sessions
+                    </a>
+                    <span>/</span>
+                    <span class="crumb-current" title={selectedSummary?.cwd}>
+                      {selectedSummary
+                        ? sessionProject(selectedSummary).name
+                        : projectName(undefined)}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span>Workspace</span>
+                    <span>/</span>
+                    <span class="crumb-current">
+                      {scope === "pinned" ? "Pinned sessions" : "All sessions"}
+                    </span>
+                  </>
+                )}
+              </div>
             </div>
             <label class="global-search">
-              <MagnifyingGlassIcon size={16} />
+              <MagnifyingGlassIcon size={18} aria-hidden="true" />
               <input
                 ref={searchInput}
                 type="search"
                 aria-label="Search all transcripts"
+                aria-keyshortcuts="Meta+K Control+K"
                 placeholder="Search transcripts, tools, or files…"
                 value={query}
                 onInput={(event) => searchLibrary(event.currentTarget.value)}
               />
-              <kbd>⌘ K</kbd>
+              <kbd aria-hidden="true">⌘ K</kbd>
             </label>
-            <span class="local-status">
-              <span />
-              Local only
-            </span>
+            <div class="topbar-actions">
+              {selectedId && (
+                <SessionPager neighbors={neighbors} annotations={preferences.sessions} />
+              )}
+              <span class="local-status">
+                <span />
+                Local only
+              </span>
+            </div>
           </header>
 
           <main class="main" id="main-content" tabIndex={-1} ref={mainContent}>

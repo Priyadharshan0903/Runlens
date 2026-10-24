@@ -38,9 +38,10 @@ Runlens discovers Claude history under `~/.claude/projects`, `CLAUDE_CONFIG_DIR`
 ## What you can inspect
 
 - **Conversations and timelines:** human questions beside agent answers, with expandable tool calls.
+  Move between chats in the same project with Previous/Next in the top bar.
 - **File changes and failures:** recorded patches, command output, and failed calls in one session.
 - **Subagents:** follow child runs and their tool activity.
-- **Search and organization:** search transcripts, pick an agent, group by project or date, and filter the library.
+- **Search and organization:** search transcripts from the centered top bar, pick an agent, group by project or date, and filter the library.
 - **Your own context:** pin sessions, rename them, add tags and notes, and export Markdown or JSON.
 - **Light and dark themes:** follow the system or choose either theme. Collapse the sidebar for more reading space.
 
@@ -73,9 +74,12 @@ Questions and suggestions are welcome in issues; code changes are welcome throug
 ## Let agents consult earlier work
 
 The source preview includes a read-only MCP server with `search_sessions` and `session_summary`
-for Claude Code and Codex history. Its connection instructions tell agents when to search earlier
-decisions or fixes, then inspect a matching session. Your agent decides when to call the tools;
-you can ask it directly. The client starts the server, so the browser viewer can stay closed.
+for Claude Code and Codex history. Search can include a matching recorded gist and counts in one
+call; summaries can filter for relevant turns. Responses default to compact excerpts. Use
+`detail: "full"` for question/answer and change/failure detail, `fields` for selected turn facts, or
+`max_snippet_chars` for shorter text. Connection instructions tell agents when earlier work may help.
+Your agent decides when to call the tools; you can ask it directly. The client starts the server,
+so the browser viewer can stay closed.
 
 **MCP is not published to npm yet.** After a release containing MCP ships, run one of these commands
 from your project folder. No source checkout, build step, or `RUNLENS_CLI` variable will be needed.
@@ -139,8 +143,10 @@ stays fixed when you change folders. Use a distinct server name for another proj
 grant it with `--allow-project` and reconnect. Agents cannot grant themselves access, and remembered
 or interactive project approvals are not implemented.
 MCP responses contain bounded, masked history and may reach your agent's model provider.
-Search and summary pages include resumable cursors and scan progress. Oversized transcripts are
-reported as skips so other sessions remain searchable; follow cursors even after empty partial pages.
+Search and summary pages include resumable cursors and scan progress. Large transcripts stream
+across cursor pages; oversized individual records are reported as skips while later records remain
+readable. Follow cursors even after empty partial pages. Summaries default to ten turns, within
+the response byte cap. No model calls are made, and token savings depend on what the agent retrieves.
 
 [Full setup, future npm commands, permissions, and limits →](docs/mcp.md)
 

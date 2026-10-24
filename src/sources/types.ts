@@ -1,5 +1,6 @@
 import type { Event } from "../core/events.js";
 import type { Session, SessionSource, SessionSummary, SearchMatch } from "../core/types.js";
+import type { ReadCheckpoint, RecordScanOptions } from "./jsonl.js";
 
 export interface DiscoveredSession {
   file: string;
@@ -24,6 +25,12 @@ export interface SourceReader {
   searchFiles(file: string): AsyncIterable<SearchFile>;
   /** Stream normalized events. Honor cancellation and close handles when iteration stops. */
   readEvents(file: string, signal?: AbortSignal): AsyncIterable<Event>;
+  /** Optional bounded MCP reader. Checkpoints account for raw bytes even without an event. */
+  scanEvents?(
+    file: string,
+    signal: AbortSignal | undefined,
+    options: RecordScanOptions,
+  ): AsyncIterable<Event | ReadCheckpoint>;
 }
 
 export interface SourceFolders {

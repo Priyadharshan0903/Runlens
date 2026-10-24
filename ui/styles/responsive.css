@@ -1,5 +1,13 @@
 /* A transcript stays readable at full density; the inspector moves into a sheet first. */
+@media (max-width: 1440px) {
+  .topbar-actions .local-status {
+    display: none;
+  }
+}
 @media (max-width: 1280px) {
+  .session-pager-link > span {
+    display: none;
+  }
   .detail-grid {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -70,9 +78,6 @@
   .focus-mode .sidebar {
     display: none;
   }
-  .global-search {
-    width: min(42vw, 360px);
-  }
   .session-row-title {
     display: -webkit-box;
     -webkit-box-orient: vertical;
@@ -95,18 +100,20 @@
   }
   .topbar {
     padding: 0 14px 0 8px;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     gap: 10px;
   }
   .breadcrumb,
   .local-status {
     display: none;
   }
-  .global-search {
-    flex: 1;
-    width: auto;
-  }
   .global-search kbd {
     display: none;
+  }
+  .session-pager-link {
+    width: 44px;
+    min-height: 44px;
+    padding: 0;
   }
   .page-heading {
     align-items: flex-start;

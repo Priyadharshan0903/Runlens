@@ -1,13 +1,23 @@
 import type { Listing } from "../core/discover.js";
 import type { Event } from "../core/events.js";
 import { buildTurns } from "../core/tree.js";
-import type { SessionSummary, ToolStep, Turn } from "../core/types.js";
+import type { SessionSummary, Turn } from "../core/types.js";
 import type { SessionFile } from "../sources/types.js";
 import { HistoryPagination } from "./pagination.js";
+import {
+  matchExcerpt,
+  projectionOptions,
+  safeDate,
+  summarizeTurn,
+  type ProjectionOptions,
+  type ProjectionRequest,
+} from "./projection.js";
 import { ScanBudget, type ScanPause, type ScanRecord } from "./scan.js";
 import {
   excerpt,
   HistoryError,
+  MAX_RECORD_BYTES,
+  MAX_PROJECTION_BYTES,
   maskSecrets,
   requestedScope,
   scopeListing,
@@ -18,11 +28,19 @@ import {
 const EMPTY_SCOPE =
   "No recorded sessions ran in this project scope, so nothing was searched. Check that the project is the folder those sessions ran in.";
 
-interface PageRequest {
+interface PageRequest extends ProjectionRequest {
   project?: string;
   offset?: number;
   limit?: number;
   cursor?: string;
+}
+
+interface SearchRequest extends PageRequest {
+  include_turns?: boolean;
+}
+
+interface SummaryRequest extends PageRequest {
+  query?: string;
 }
 
 /** A separate projection: viewer search is deliberately broader and must not feed MCP. */
@@ -53,13 +71,18 @@ export class HistoryService {
     return scopeListing(listing, directory);
   }
 
-  async search(query: string, request: PageRequest = {}, signal?: AbortSignal) {
-    const normalized = query.replace(/\s+/g, " ").trim().toLowerCase();
-    if (normalized.length < 2 || normalized.length > 200)
-      throw new HistoryError("invalid_query", "Query must contain between 2 and 200 characters.");
+  async search(query: string, request: SearchRequest = {}, signal?: AbortSignal) {
+    const normalized = normalizeQuery(query);
     const { offset, limit } = pageRequest(request);
     const directory = requestedScope(this.policy, request.project);
-    const key = JSON.stringify(["search", directory, normalized]);
+    const includeTurns = request.include_turns ?? false;
+    const projection = projectionOptions(request);
+    if (projection.explicitFields && !includeTurns)
+      throw new HistoryError(
+        "invalid_projection",
+        "Search fields select matching-turn content. Set include_turns: true to use fields.",
+      );
+    const key = JSON.stringify(["search", directory, normalized, includeTurns, projection.key]);
     if (request.cursor) return this.pagination.resume(request.cursor, key, limit, signal);
     const { listing, project } = await this.scoped(request.project, signal);
     const budget = new ScanBudget();
@@ -72,7 +95,7 @@ export class HistoryService {
         },
         field: "results",
         budget,
-        iterator: searchSessions(listing, normalized, budget),
+        iterator: searchSessions(listing, normalized, budget, includeTurns, projection),
         offset,
         remainingOffset: offset,
       },
@@ -81,12 +104,16 @@ export class HistoryService {
     );
   }
 
-  async summary(id: string, request: PageRequest = {}, signal?: AbortSignal) {
+  async summary(id: string, request: SummaryRequest = {}, signal?: AbortSignal) {
     if (!/^[\w-]{1,160}$/.test(id))
       throw new HistoryError("invalid_session", "Use a session ID returned by search_sessions.");
-    const { offset, limit } = pageRequest(request);
+    const query = request.query === undefined ? undefined : normalizeQuery(request.query);
+    const { offset, limit } = pageRequest(request, 10, 50);
+    const projection = projectionOptions(request);
+    if (projection.fields.has("match_excerpt") && query === undefined)
+      throw new HistoryError("invalid_projection", "match_excerpt requires a summary query.");
     const directory = requestedScope(this.policy, request.project);
-    const key = JSON.stringify(["summary", directory, id]);
+    const key = JSON.stringify(["summary", directory, id, query, projection.key]);
     if (request.cursor) return this.pagination.resume(request.cursor, key, limit, signal);
     const { listing, project } = await this.scoped(request.project, signal);
     const session = listing.sessions.find((item) => item.id === id);
@@ -105,7 +132,7 @@ export class HistoryService {
         base: { ...provenance(session), project: excerpt(project, 512) },
         field: "turns",
         budget,
-        iterator: summaryTurns(entry, budget),
+        iterator: summaryTurns(entry, budget, projection, query),
         offset,
         remainingOffset: offset,
       },
@@ -115,9 +142,16 @@ export class HistoryService {
   }
 }
 
-function pageRequest(request: PageRequest) {
+function normalizeQuery(query: string) {
+  const normalized = query.replace(/\s+/g, " ").trim().toLowerCase();
+  if (normalized.length < 2 || normalized.length > 200)
+    throw new HistoryError("invalid_query", "Query must contain between 2 and 200 characters.");
+  return normalized;
+}
+
+function pageRequest(request: PageRequest, defaultLimit = 3, maxLimit = 5) {
   const offset = request.offset ?? 0;
-  const limit = request.limit ?? 3;
+  const limit = request.limit ?? defaultLimit;
   if (request.cursor !== undefined && request.offset !== undefined)
     throw new HistoryError(
       "invalid_page",
@@ -134,14 +168,13 @@ function pageRequest(request: PageRequest) {
     offset > 100_000 ||
     !Number.isInteger(limit) ||
     limit < 1 ||
-    limit > 5
+    limit > maxLimit
   )
-    throw new HistoryError("invalid_page", "Offset must be 0–100000 and limit must be 1–5.");
+    throw new HistoryError(
+      "invalid_page",
+      `Offset must be 0–100000 and limit must be 1–${maxLimit}.`,
+    );
   return { offset, limit };
-}
-
-function safeDate(value: string | undefined) {
-  return value && Number.isFinite(Date.parse(value)) ? new Date(value).toISOString() : "";
 }
 
 function provenance(session: SessionSummary) {
@@ -158,36 +191,62 @@ async function* searchSessions(
   listing: Listing,
   query: string,
   budget: ScanBudget,
+  includeTurns: boolean,
+  projection: ProjectionOptions,
 ): AsyncGenerator<ScanRecord> {
   for (const [index, session] of listing.sessions.entries()) {
     budget.signal.throwIfAborted();
     const entry = listing.files.get(session.id);
     if (!entry) continue;
-    let match: { excerpt: string; origin: string; at: string } | undefined;
-    for await (const file of projectedFiles(entry, budget)) {
-      if (file.kind === "pause") {
-        yield file;
-        continue;
-      }
-      for await (const event of file.events) {
-        if ("kind" in event) {
-          yield event;
+    let match: Record<string, unknown> | undefined;
+    if (includeTurns) {
+      for await (const record of recordedTurns(entry, budget)) {
+        if (record.kind === "pause") {
+          yield record;
           continue;
         }
-        // Match the same masked projection that can be returned. No secret oracle.
-        if (event.type !== "prompt" && event.type !== "text" && event.type !== "interjection")
-          continue;
-        const position = event.text.toLowerCase().indexOf(query);
-        if (position < 0) continue;
+        const message = matchingMessage(record.turn, query);
+        if (!message) continue;
         match = {
-          excerpt: event.text.slice(Math.max(0, position - 65), position + query.length + 130),
-          origin: file.source,
-          at: safeDate(event.at),
+          ...(!projection.explicitFields
+            ? { excerpt: matchExcerpt(message.text, query, projection.maxSnippetChars) }
+            : {}),
+          origin: record.origin,
+          at: safeDate(message.at),
+          matching_turn: {
+            ...summarizeTurn(record.turn, projection),
+            ...(projection.fields.has("match_excerpt")
+              ? { match_excerpt: matchExcerpt(message.text, query, projection.maxSnippetChars) }
+              : {}),
+          },
         };
         break;
       }
-      if (match) break;
-    }
+    } else
+      for await (const file of projectedFiles(entry, budget)) {
+        if (file.kind === "pause") {
+          yield file;
+          continue;
+        }
+        for await (const event of file.events) {
+          if ("kind" in event) {
+            yield event;
+            continue;
+          }
+          // Match the same masked projection that can be returned. No secret oracle.
+          if (event.type !== "prompt" && event.type !== "text" && event.type !== "interjection")
+            continue;
+          const position = event.text.toLowerCase().indexOf(query);
+          if (position < 0) continue;
+          match = {
+            excerpt: matchExcerpt(event.text, query, projection.maxSnippetChars),
+            origin: file.source,
+            at: safeDate(event.at),
+          };
+          break;
+        }
+        if (match) break;
+      }
     budget.progress.sessions_completed++;
     if (match)
       yield {
@@ -198,44 +257,111 @@ async function* searchSessions(
   }
 }
 
-async function* summaryTurns(entry: SessionFile, budget: ScanBudget): AsyncGenerator<ScanRecord> {
+/** Only fields originating in projected messages participate, never tool metadata or outputs. */
+function matchingMessage(turn: Turn, query: string) {
+  const messages = [
+    { text: turn.prompt, at: turn.at },
+    ...turn.steps.flatMap((step) =>
+      step.kind === "tool"
+        ? [{ text: step.why ?? "", at: step.at }]
+        : step.from === "agent" || step.from === "user"
+          ? [{ text: step.text, at: step.at }]
+          : [],
+    ),
+    { text: turn.final ?? "", at: turn.at },
+  ];
+  return messages.find((message) => message.text.toLowerCase().includes(query));
+}
+
+async function* summaryTurns(
+  entry: SessionFile,
+  budget: ScanBudget,
+  projection: ProjectionOptions,
+  query?: string,
+): AsyncGenerator<ScanRecord> {
+  for await (const record of recordedTurns(entry, budget)) {
+    if (record.kind === "pause") {
+      yield record;
+      continue;
+    }
+    const match = query === undefined ? undefined : matchingMessage(record.turn, query);
+    if (query !== undefined && !match) continue;
+    if (record.last) budget.progress.sessions_completed = 1;
+    yield {
+      kind: "item",
+      value: {
+        origin: record.origin,
+        ...summarizeTurn(record.turn, projection),
+        ...(match && (!projection.explicitFields || projection.fields.has("match_excerpt"))
+          ? { match_excerpt: matchExcerpt(match.text, query!, projection.maxSnippetChars) }
+          : {}),
+      },
+      last: record.last,
+    };
+  }
+  budget.progress.sessions_completed = 1;
+}
+
+async function* recordedTurns(
+  entry: SessionFile,
+  budget: ScanBudget,
+): AsyncGenerator<ScanPause | { kind: "turn"; origin: string; turn: Turn; last: boolean }> {
   for await (const file of projectedFiles(entry, budget)) {
     if (file.kind === "pause") {
       yield file;
       continue;
     }
     let projected: Event[] = [];
+    let projectedBytes = 0;
+    let discarding = false;
     const pendingCalls = new Set<string>();
     for await (const event of file.events) {
       if ("kind" in event) {
         yield event;
         continue;
       }
+      if (discarding) {
+        if (event.type !== "prompt") continue;
+        discarding = false;
+      }
       // Wait for outstanding calls so results crossing a prompt still belong to their call.
       if (event.type === "tool_use") pendingCalls.add(event.id);
       if (event.type === "tool_result") pendingCalls.delete(event.toolUseId);
       if (event.type === "prompt" && projected.length && !pendingCalls.size) {
         const turns = buildTurns(projected).turns;
-        projected = [event];
+        projected = [];
+        projectedBytes = 0;
         for (const turn of turns)
           yield {
-            kind: "item",
-            value: { origin: file.source, ...summarizeTurn(turn) },
+            kind: "turn",
+            origin: file.source,
+            turn,
             last: false,
           };
-      } else projected.push(event);
+      }
+      projectedBytes += Buffer.byteLength(JSON.stringify(event));
+      if (projectedBytes > MAX_PROJECTION_BYTES) {
+        const count =
+          projected.filter((item) => item.type === "prompt").length +
+          (event.type === "prompt" ? 1 : 0);
+        budget.skipTurns(entry.id, file.source, Math.max(1, count));
+        projected = [];
+        projectedBytes = 0;
+        pendingCalls.clear();
+        discarding = true;
+        continue;
+      }
+      projected.push(event);
     }
-    if (file.last) budget.progress.sessions_completed++;
     const turns = buildTurns(projected).turns;
     for (const [index, turn] of turns.entries())
       yield {
-        kind: "item",
-        value: { origin: file.source, ...summarizeTurn(turn) },
+        kind: "turn",
+        origin: file.source,
+        turn,
         last: file.last && index === turns.length - 1,
       };
   }
-  // A skipped final file may leave no turn on which to report completion.
-  budget.progress.sessions_completed = 1;
 }
 
 async function* projectedFiles(
@@ -263,23 +389,29 @@ async function* projectedFiles(
       budget.skip(entry.id, source, "inherited_transcript_unavailable");
       continue;
     }
-    if (!(yield* budget.file(file, entry.id, source))) continue;
-    const saved = parents.has(file) ? ([] as Event[]) : undefined;
-    if (saved) recorded.set(file, saved);
+    if (!(yield* budget.file(file, entry.id, source, !!entry.reader.scanEvents))) continue;
+    const saved = parents.has(file)
+      ? { events: [] as Event[], bytes: 0, complete: true }
+      : undefined;
+    const skippedRecords = budget.progress.skipped_records;
     yield {
       kind: "file",
       source,
       last: index === files.length - 1,
-      events: projectedEvents(entry, file, budget, saved, parent),
+      events: projectedEvents(entry, file, source, budget, saved, parent),
     };
+    // A partial parent cannot safely identify the child's inherited evidence.
+    if (saved?.complete && budget.progress.skipped_records === skippedRecords)
+      recorded.set(file, saved.events);
   }
 }
 
 async function* projectedEvents(
   entry: SessionFile,
   file: string,
+  source: string,
   budget: ScanBudget,
-  saved: Event[] | undefined,
+  saved: { events: Event[]; bytes: number; complete: boolean } | undefined,
   parent?: Event[],
 ): AsyncGenerator<Event | ScanPause> {
   let prefix = 0;
@@ -288,14 +420,23 @@ async function* projectedEvents(
   const inheritedCalls = new Set(
     parent?.filter((event) => event.type === "tool_use").map((event) => event.id),
   );
-  for await (const event of budget.read(entry.reader.readEvents(file, budget.signal))) {
+  const events = entry.reader.scanEvents
+    ? entry.reader.scanEvents(file, budget.signal, { maxRecordBytes: MAX_RECORD_BYTES })
+    : entry.reader.readEvents(file, budget.signal);
+  for await (const event of budget.read(events, entry.id, source)) {
     if ("kind" in event) {
       yield event;
       continue;
     }
     const safe = projectEvent(event);
     if (!safe) continue;
-    saved?.push(safe);
+    if (saved?.complete) {
+      saved.bytes += Buffer.byteLength(JSON.stringify(safe));
+      if (saved.bytes > MAX_PROJECTION_BYTES) {
+        saved.events = [];
+        saved.complete = false;
+      } else saved.events.push(safe);
+    }
     // Stream the viewer's ownEvents rule without buffering the entire fork first.
     if (replay && JSON.stringify(safe) === JSON.stringify(parent?.[prefix])) {
       prefix++;
@@ -316,6 +457,12 @@ function projectEvent(event: Event): Event | undefined {
   switch (event.type) {
     case "prompt":
     case "interjection":
+      return {
+        ...event,
+        text: maskSecrets(event.text.replace(/<ide_opened_file>[\s\S]*?<\/ide_opened_file>/g, " "))
+          .replace(/\s+/g, " ")
+          .trim(),
+      };
     case "text":
       return { ...event, text: maskSecrets(event.text).replace(/\s+/g, " ").trim() };
     case "interrupt":
@@ -359,26 +506,4 @@ function projectEvent(event: Event): Event | undefined {
 
 function safeCount(value: number) {
   return Number.isSafeInteger(value) && value >= 0 ? value : 0;
-}
-
-function summarizeTurn(turn: Turn) {
-  const tools = turn.steps.filter((step): step is ToolStep => step.kind === "tool");
-  const changes = tools.flatMap((tool) =>
-    tool.result?.status === "ok" ? (tool.action.files ?? []) : [],
-  );
-  const failures = tools.filter((tool) => tool.result?.status === "error");
-  return {
-    at: safeDate(turn.at),
-    asked: excerpt(turn.prompt, 480),
-    recorded_answer: excerpt(turn.final ?? "", 800),
-    changes: changes
-      .slice(0, 8)
-      .map((file) => ({ path: file.path, added: file.added, removed: file.removed })),
-    omitted_changes: Math.max(0, changes.length - 8),
-    failures: failures
-      .slice(0, 8)
-      .map((tool) => ({ tool: tool.name, at: safeDate(tool.at), status: "error" })),
-    omitted_failures: Math.max(0, failures.length - 8),
-    tool_calls: tools.length,
-  };
 }

@@ -5,7 +5,12 @@ import { describe, expect, it } from "vitest";
 import { listSessions } from "../src/core/discover.js";
 import { assignSessionProjects } from "../src/core/projects.js";
 import type { SearchMatch, SessionSummary } from "../src/core/types.js";
-import { groupSessionsByProject, matchingSessions } from "../ui/features/library/session-list.js";
+import {
+  filterBySource,
+  groupSessionsByProject,
+  matchingSessions,
+} from "../ui/features/library/session-list.js";
+import { sessionNeighbors } from "../ui/features/session/session-neighbors.js";
 import { makeProjectsRoot, prompt } from "./helpers.js";
 
 function session(id: string, cwd?: string, day = 1): SessionSummary {
@@ -20,6 +25,87 @@ function session(id: string, cwd?: string, day = 1): SessionSummary {
     subagents: 0,
   };
 }
+
+describe("previous and next chats", () => {
+  it("follows newest-first project order, including grouped subfolders, without changing the library", () => {
+    const project = {
+      id: "/work/demo",
+      name: "demo",
+      path: "/work/demo",
+      availability: "available" as const,
+    };
+    const oldest = { ...session("oldest", "/work/demo", 1), project };
+    const current = { ...session("current", "/work/demo/src", 2), project };
+    const newest = { ...session("newest", "/work/demo", 3), project };
+    const unrelated = session("other-demo", "/personal/demo", 4);
+    const sessions = [oldest, unrelated, current, newest];
+
+    expect(sessionNeighbors(sessions, "current")).toEqual({
+      previous: newest,
+      next: oldest,
+      position: 2,
+      total: 3,
+    });
+    expect(sessions.map((item) => item.id)).toEqual(["oldest", "other-demo", "current", "newest"]);
+    expect(sessionNeighbors(sessions, "newest")).toEqual({
+      previous: undefined,
+      next: current,
+      position: 1,
+      total: 3,
+    });
+    expect(sessionNeighbors(sessions, "oldest")).toEqual({
+      previous: current,
+      next: undefined,
+      position: 3,
+      total: 3,
+    });
+  });
+
+  it("respects the chosen agent and handles a missing or single chat without wrapping", () => {
+    const claude = session("claude", "/work/demo", 1);
+    const codex = { ...session("codex", "/work/demo", 2), source: { id: "codex", name: "Codex" } };
+    const sessions = [claude, codex];
+    expect(sessionNeighbors(sessions, "claude")).toMatchObject({ previous: codex, total: 2 });
+    const scoped = filterBySource(sessions, "claude");
+    expect(sessionNeighbors(scoped, "claude")).toEqual({
+      previous: undefined,
+      next: undefined,
+      position: 1,
+      total: 1,
+    });
+    expect(sessionNeighbors(scoped, "codex")).toBeUndefined();
+    expect(sessionNeighbors(sessions, "missing")).toBeUndefined();
+    expect(sessionNeighbors(sessions, undefined)).toBeUndefined();
+    expect(sessionNeighbors([], "claude")).toBeUndefined();
+  });
+
+  it("uses the full project beyond sidebar and library page limits", () => {
+    const sessions = Array.from({ length: 45 }, (_, index) => ({
+      ...session(`chat-${index}`, "/work/demo"),
+      updatedAt: new Date(Date.UTC(2026, 9, 1, 0, index)).toISOString(),
+    }));
+    expect(sessionNeighbors(sessions, "chat-1")).toMatchObject({
+      previous: sessions[2],
+      next: sessions[0],
+      position: 44,
+      total: 45,
+    });
+  });
+
+  it("keeps equal timestamps in the same stable order as the sidebar", () => {
+    const sessions = [
+      session("one", "/work/demo"),
+      session("two", "/work/demo"),
+      session("three", "/work/demo"),
+    ];
+    expect(sessionNeighbors(sessions, "two")).toMatchObject({
+      previous: sessions[0],
+      next: sessions[2],
+      position: 2,
+      total: 3,
+    });
+  });
+});
 
 describe("projects inferred from recorded directories", () => {
   it("combines descendants under the highest recorded parent, regardless of input order", async () => {

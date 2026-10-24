@@ -48,7 +48,7 @@ export class HistoryPagination {
     if (!continuation || continuation.key !== key)
       throw new HistoryError(
         "invalid_cursor",
-        "Cursor expired or does not match this query, session and project. Resume with offset set to next_offset from your last page, or restart without cursor.",
+        "Cursor expired or does not match this query, session, project or output options. Resume with offset set to next_offset from your last page, or restart without cursor.",
       );
     if (continuation.limit !== undefined && continuation.limit !== limit)
       throw new HistoryError(
@@ -136,7 +136,12 @@ export class HistoryPagination {
             [scan.field]: items.map((item) => item.value),
             next_offset: done ? null : scan.offset + oversized + items.length,
             next_cursor: done ? null : cursor,
-            partial: !done || oversized > 0 || scan.budget.progress.skipped_transcripts > 0,
+            partial:
+              !done ||
+              oversized > 0 ||
+              scan.budget.progress.skipped_transcripts > 0 ||
+              scan.budget.progress.skipped_records > 0 ||
+              scan.budget.progress.skipped_turns > 0,
             stop_reason: stopReason,
             scan_progress: { ...scan.budget.progress },
             skipped: [...scan.budget.skipped],
