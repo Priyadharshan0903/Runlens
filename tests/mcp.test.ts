@@ -29,6 +29,7 @@ import {
   historyResponse,
   maskSecrets,
   MAX_RESPONSE_BYTES,
+  MAX_RECORD_BYTES,
   MAX_SCAN_BYTES,
   MAX_SCAN_EVENTS,
   MAX_TRANSCRIPT_BYTES,
@@ -36,6 +37,8 @@ import {
   scopeListing,
 } from "../src/mcp/safety.js";
 import { claudeReader } from "../src/sources/claude/reader.js";
+import { codexReader } from "../src/sources/codex/reader.js";
+import { scanRecords } from "../src/sources/jsonl.js";
 import { prompt, say, call, result, tick, jsonl } from "./helpers.js";
 import { mcpFixture } from "./mcp-fixtures.js";
 
@@ -188,7 +191,7 @@ describe("MCP safety contract", () => {
     const listing = await list();
     const forbidden = listing.files.get("different-project")!;
     const read = vi.fn(claudeReader.readEvents);
-    forbidden.reader = { ...claudeReader, readEvents: read };
+    forbidden.reader = { ...claudeReader, scanEvents: undefined, readEvents: read };
     const service = new HistoryService(async () => listing, { project: "/work/demo" });
     await service.search("timeout");
     await expect(service.summary("different-project")).rejects.toMatchObject({
@@ -221,7 +224,11 @@ describe("MCP safety contract", () => {
       "TOOL_INPUT_PRIVATE_ONLY",
       "THINKING_PRIVATE_ONLY",
     ]) {
-      expect(JSON.stringify(await service.search(query))).not.toContain('"session_id"');
+      for (const include_turns of [false, true])
+        expect(JSON.stringify(await service.search(query, { include_turns }))).not.toContain(
+          '"session_id"',
+        );
+      expect((await service.summary("earlier-claude", { query })).turns).toEqual([]);
     }
     const summary = JSON.stringify(await service.summary("earlier-claude"));
     expect(summary).not.toMatch(
@@ -381,12 +388,16 @@ describe("MCP safety contract", () => {
     expect(() => historyResponse({ raw: "界".repeat(MAX_RESPONSE_BYTES) })).toThrow("byte limit");
   });
 
-  it("reports oversized transcripts without opening their event streams", async () => {
+  it("keeps a transcript cap for adapters without byte checkpoints", async () => {
     const { claude, list } = fixture();
     const listing = await list();
     truncateSync(claude, MAX_TRANSCRIPT_BYTES + 1);
     const read = vi.fn(claudeReader.readEvents);
-    listing.files.get("earlier-claude")!.reader = { ...claudeReader, readEvents: read };
+    listing.files.get("earlier-claude")!.reader = {
+      ...claudeReader,
+      scanEvents: undefined,
+      readEvents: read,
+    };
     const service = new HistoryService(async () => listing, { project: "/work/demo" });
     expect(await service.summary("earlier-claude")).toMatchObject({
       turns: [],
@@ -412,7 +423,11 @@ describe("MCP safety contract", () => {
     );
     truncateSync(oversized, MAX_TRANSCRIPT_BYTES + 1);
     const read = vi.fn(claudeReader.readEvents);
-    listing.files.get("oversized")!.reader = { ...claudeReader, readEvents: read };
+    listing.files.get("oversized")!.reader = {
+      ...claudeReader,
+      scanEvents: undefined,
+      readEvents: read,
+    };
     const discover = vi.fn(async () => listing);
     const service = track(new HistoryService(discover, { project: "/work/demo" }));
     const first = await service.search("timeout", { limit: 1 });
@@ -452,7 +467,11 @@ describe("MCP safety contract", () => {
     });
     for (const [index, file] of paths.entries()) {
       truncateSync(file, MAX_TRANSCRIPT_BYTES);
-      listing.files.get(`budget-${index}`)!.reader = { ...claudeReader, readEvents: read };
+      listing.files.get(`budget-${index}`)!.reader = {
+        ...claudeReader,
+        scanEvents: undefined,
+        readEvents: read,
+      };
     }
     const service = track(new HistoryService(async () => listing, { project: "/work/demo" }));
     const first = await service.search("byte-budget-match", { limit: 5 });
@@ -484,6 +503,7 @@ describe("MCP safety contract", () => {
     writeSubagent("earlier-claude", "helper", [prompt("Child question"), say("Child answer")]);
     const listing = await list();
     truncateSync(claude, MAX_TRANSCRIPT_BYTES + 1);
+    listing.files.get("earlier-claude")!.reader = { ...claudeReader, scanEvents: undefined };
     const service = track(new HistoryService(async () => listing, { project: "/work/demo" }));
     expect(await service.summary("earlier-claude")).toMatchObject({
       turns: [{ origin: "subagent", asked: "Child question", recorded_answer: "Child answer" }],
@@ -501,6 +521,7 @@ describe("MCP safety contract", () => {
     const read = vi.fn(claudeReader.readEvents);
     listing.files.get("earlier-claude")!.reader = {
       ...claudeReader,
+      scanEvents: undefined,
       async *searchFiles() {
         yield { file: claude, source: "session" };
         yield { file: child, source: "subagent", inheritedFile: claude };
@@ -529,6 +550,7 @@ describe("MCP safety contract", () => {
       const entry = listing.files.get(session.id)!;
       entry.reader = {
         ...entry.reader,
+        scanEvents: undefined,
         async *readEvents() {
           try {
             if (index === 1)
@@ -574,6 +596,7 @@ describe("MCP safety contract", () => {
     let closed = false;
     listing.files.get("earlier-claude")!.reader = {
       ...claudeReader,
+      scanEvents: undefined,
       async *readEvents() {
         try {
           for (const text of ["First question", "Long second question", "Last question"]) {
@@ -654,7 +677,11 @@ describe("MCP safety contract", () => {
     );
     const listing = await list();
     const read = vi.fn(claudeReader.readEvents);
-    listing.files.get("wide-summary")!.reader = { ...claudeReader, readEvents: read };
+    listing.files.get("wide-summary")!.reader = {
+      ...claudeReader,
+      scanEvents: undefined,
+      readEvents: read,
+    };
     const service = track(new HistoryService(async () => listing, { project: "/work/demo" }));
     const first = await service.summary("wide-summary", { limit: 5 });
     expect(first.stop_reason).toBe("response_bytes");
@@ -678,6 +705,7 @@ describe("MCP safety contract", () => {
     let closed = false;
     listing.files.get("earlier-claude")!.reader = {
       ...claudeReader,
+      scanEvents: undefined,
       async *readEvents() {
         try {
           yield { type: "prompt", text: "First", at: tick() };
@@ -705,6 +733,7 @@ describe("MCP safety contract", () => {
     const listing = await list();
     listing.files.get("earlier-claude")!.reader = {
       ...claudeReader,
+      scanEvents: undefined,
       async *readEvents() {
         for (let i = 0; i < 20; i++) yield { type: "prompt", text: `Question ${i}`, at: tick() };
       },
@@ -801,6 +830,7 @@ describe("MCP safety contract", () => {
     let closed = false;
     listing.files.get("earlier-claude")!.reader = {
       ...claudeReader,
+      scanEvents: undefined,
       async *readEvents() {
         try {
           yield { type: "prompt", text: "First question", at: tick() };
@@ -842,6 +872,7 @@ describe("MCP safety contract", () => {
     let closed = false;
     listing.files.get("earlier-claude")!.reader = {
       ...claudeReader,
+      scanEvents: undefined,
       async *readEvents(file, signal) {
         try {
           for await (const event of claudeReader.readEvents(file, signal)) {
@@ -925,6 +956,340 @@ describe("MCP scan admission", () => {
 });
 
 describe("MCP page reporting", () => {
+  it("preserves UTF-8 and CRLF across raw chunks, skips huge records, and reads a final record without newline", async () => {
+    const { writeSession } = fixture();
+    const text = "界".repeat(30_000);
+    const raw =
+      JSON.stringify({ text }) +
+      "\r\n" +
+      JSON.stringify({ hidden: "x".repeat(110_000) }) +
+      "\n" +
+      "damaged record\n42\n" +
+      JSON.stringify({ text: "last" });
+    const file = writeSession("raw-scanner", raw);
+    const values = [];
+    let bytes = 0;
+    let skipped = 0;
+    for await (const record of scanRecords(file, undefined, { maxRecordBytes: 100_000 })) {
+      if (record.kind === "bytes") bytes += record.bytes;
+      else if (record.kind === "skipped_record") skipped++;
+      else values.push(record.value);
+    }
+    expect(values).toEqual([{ text }, { text: "last" }]);
+    expect(skipped).toBe(1);
+    expect(bytes).toBe(Buffer.byteLength(raw));
+    const controller = new AbortController();
+    const scanner = scanRecords(file, controller.signal, { maxRecordBytes: 100_000 })[
+      Symbol.asyncIterator
+    ]();
+    await scanner.next();
+    controller.abort();
+    await expect(scanner.next()).rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it("reports an excessive turn buffer and continues at the next question", async () => {
+    const { service, writeSession } = fixture();
+    const text = "x".repeat(1024 * 1024);
+    writeSession("large-turn", [
+      prompt("Too much commentary"),
+      ...Array.from({ length: 9 }, () => say(text)),
+      prompt("Next question"),
+      say("Recoverable answer"),
+    ]);
+    expect(await service.summary("large-turn")).toMatchObject({
+      turns: [{ asked: "Next question", recorded_answer: "Recoverable answer" }],
+      partial: true,
+      next_cursor: null,
+      skipped: [{ reason: "turn_buffer" }],
+      scan_progress: { skipped_turns: 1 },
+    });
+  });
+
+  it("removes IDE opened-file boilerplate before matching and excerpting user messages", async () => {
+    const { service, writeSession } = fixture();
+    writeSession("ide-context", [
+      prompt(
+        "<ide_opened_file>" +
+          "EDITOR_CONTEXT_ONLY ".repeat(60) +
+          "</ide_opened_file>\nFix the retry race",
+      ),
+      say("Cancelled the earlier request"),
+    ]);
+    expect(await service.search("retry race", { include_turns: true })).toMatchObject({
+      results: [
+        {
+          matching_turn: {
+            asked: "Fix the retry race",
+            recorded_answer: "Cancelled the earlier request",
+          },
+        },
+      ],
+    });
+    expect((await service.search("EDITOR_CONTEXT_ONLY", { include_turns: true })).results).toEqual(
+      [],
+    );
+    expect((await service.summary("ide-context")).turns).toMatchObject([
+      { asked: "Fix the retry race" },
+    ]);
+  });
+
+  it.each([claudeReader, codexReader])(
+    "resumes raw-byte scanning inside a large $source.name session and retrieves its tail without reopening",
+    async (reader) => {
+      const { list, writeSession, codex } = fixture();
+      const id = reader === claudeReader ? "large" : "codex--large";
+      const message = (role: string, text: string) =>
+        reader === claudeReader
+          ? role === "user"
+            ? prompt(text)
+            : say(text)
+          : {
+              type: "response_item",
+              timestamp: tick(),
+              payload: {
+                type: "message",
+                role,
+                content: [{ type: role === "user" ? "input_text" : "output_text", text }],
+              },
+            };
+      const padding = JSON.stringify({ type: "progress", padding: "x".repeat(1024 * 1024) }) + "\n";
+      const records =
+        jsonl([
+          ...(reader === codexReader
+            ? [
+                {
+                  type: "session_meta",
+                  timestamp: tick(),
+                  payload: { id: "large", cwd: "/work/demo", source: "cli" },
+                },
+              ]
+            : []),
+          message("user", "First question"),
+          message("assistant", "First answer"),
+          message("user", "Late question"),
+        ]) +
+        padding.repeat(34) +
+        jsonl([message("assistant", "Tail decision")]);
+      if (reader === claudeReader) writeSession("large", records);
+      else writeFileSync(join(codex, "rollout-synthetic.jsonl"), records);
+      const listing = await list();
+      listing.sessions = listing.sessions.filter((session) => session.id === id);
+      const scan = vi.fn(reader.scanEvents!);
+      listing.files.get(id)!.reader = { ...reader, scanEvents: scan };
+      const service = track(new HistoryService(async () => listing, { project: "/work/demo" }));
+      const first = await service.summary(id);
+      expect(first).toMatchObject({
+        turns: [{ asked: "First question", recorded_answer: "First answer" }],
+        partial: true,
+        stop_reason: "total_bytes",
+        scan_progress: { bytes_reserved: MAX_SCAN_BYTES, transcripts_read: 1 },
+      });
+      const last = await service.summary(id, { cursor: first.next_cursor! });
+      expect(last).toMatchObject({
+        turns: [{ asked: "Late question", recorded_answer: "Tail decision" }],
+        next_cursor: null,
+        partial: false,
+        scan_progress: {
+          bytes_reserved: Buffer.byteLength(records),
+          transcripts_read: 1,
+          skipped_records: 0,
+        },
+      });
+      expect(scan).toHaveBeenCalledTimes(1);
+      const search = await service.search("Tail decision", { include_turns: true });
+      expect(search).toMatchObject({ results: [], partial: true, stop_reason: "total_bytes" });
+      const found = await service.search("Tail decision", {
+        include_turns: true,
+        cursor: search.next_cursor!,
+      });
+      expect(found).toMatchObject({
+        results: [
+          {
+            session_id: id,
+            matching_turn: { asked: "Late question", recorded_answer: "Tail decision" },
+          },
+        ],
+        next_cursor: null,
+        partial: false,
+      });
+    },
+  );
+
+  it("skips an oversized record and keeps later decisions and child transcripts readable", async () => {
+    const { service, writeSession, writeSubagent } = fixture();
+    writeSession("huge-record", [
+      prompt("Before"),
+      say("Early answer"),
+      { type: "progress", padding: "x".repeat(MAX_RECORD_BYTES) },
+      prompt("After"),
+      say("Later decision"),
+    ]);
+    writeSubagent("huge-record", "helper", [prompt("Child question"), say("Child answer")]);
+    expect(await service.summary("huge-record")).toMatchObject({
+      turns: [
+        { asked: "Before", recorded_answer: "Early answer" },
+        { asked: "After", recorded_answer: "Later decision" },
+        { origin: "subagent", asked: "Child question", recorded_answer: "Child answer" },
+      ],
+      next_cursor: null,
+      partial: true,
+      skipped: [{ session_id: "huge-record", reason: "record_size", bytes: expect.any(Number) }],
+      scan_progress: { skipped_records: 1, skipped_transcripts: 0 },
+    });
+  });
+
+  it("skips inherited child evidence when a parent record was omitted", async () => {
+    const { list, writeSession } = fixture();
+    const parent = writeSession("partial-parent", [
+      prompt("Main question"),
+      { type: "progress", padding: "x".repeat(MAX_RECORD_BYTES) },
+      say("Main answer"),
+    ]);
+    const child = writeSession("inherited-child", [
+      prompt("Main question"),
+      say("Main answer"),
+      prompt("Child work"),
+    ]);
+    const listing = await list();
+    listing.files.get("partial-parent")!.reader = {
+      ...claudeReader,
+      async *searchFiles() {
+        yield { file: parent, source: "session" };
+        yield { file: child, source: "subagent", inheritedFile: parent };
+      },
+    };
+    const service = track(new HistoryService(async () => listing, { project: "/work/demo" }));
+    expect(await service.summary("partial-parent")).toMatchObject({
+      turns: [{ asked: "Main question", recorded_answer: "Main answer" }],
+      partial: true,
+      next_cursor: null,
+      skipped: [{ reason: "record_size" }, { reason: "inherited_transcript_unavailable" }],
+    });
+  });
+
+  it("includes a matching turn in search without exposing raw activity or requiring a summary", async () => {
+    const { service } = fixture();
+    const rich = await service.search("recurring search timeout", { include_turns: true });
+    expect(rich.results).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          session_id: "earlier-claude",
+          matching_turn: expect.objectContaining({
+            asked: "Fix the recurring search timeout",
+            recorded_answer: "Cancelled the superseded request. The focused search test passed.",
+            failures: [{ tool: "Bash", at: expect.any(String), status: "error" }],
+            changes: [{ path: "/work/demo/search.ts", added: 2, removed: 1 }],
+          }),
+        }),
+        expect.objectContaining({
+          session_id: "codex--later-codex",
+          matching_turn: expect.any(Object),
+        }),
+      ]),
+    );
+    expect(JSON.stringify(rich)).not.toMatch(
+      /WEB_FETCH_INJECTION_ONLY|RAW_ERROR_OUTPUT_ONLY|synthetic-private-value/,
+    );
+    const lean = await service.search("recurring search timeout");
+    expect(lean.results).toEqual(
+      expect.arrayContaining([expect.not.objectContaining({ matching_turn: expect.anything() })]),
+    );
+    const oldFlow = [
+      lean,
+      await service.summary("earlier-claude"),
+      await service.summary("codex--later-codex"),
+    ];
+    expect(Buffer.byteLength(JSON.stringify(rich))).toBeLessThan(
+      Buffer.byteLength(JSON.stringify(oldFlow)),
+    );
+  });
+
+  it("filters turns using full masked messages and returns match context beyond excerpt caps", async () => {
+    const { service, writeSession, writeSubagent } = fixture();
+    writeSession("filtered", [
+      prompt("Unrelated work"),
+      say("Ordinary answer"),
+      prompt("x".repeat(600) + " needle question"),
+      say("Answer to question"),
+      prompt("Another question"),
+      say("y".repeat(900) + " needle answer"),
+      prompt("Only activity"),
+      call("read", "Read", { file_path: "needle" }),
+      result("read", "needle"),
+      say("No message match"),
+    ]);
+    writeSubagent("filtered", "helper", [prompt("A child needle"), say("Child answer")]);
+    const page = await service.summary("filtered", { query: " needle " });
+    expect(page).toMatchObject({
+      next_cursor: null,
+      partial: false,
+      turns: [
+        {
+          recorded_answer: "Answer to question",
+          match_excerpt: expect.stringContaining("needle question"),
+        },
+        { asked: "Another question", match_excerpt: expect.stringContaining("needle answer") },
+        { origin: "subagent", asked: "A child needle", recorded_answer: "Child answer" },
+      ],
+    });
+    const search = await service.search("needle", { include_turns: true });
+    expect(search.results).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          session_id: "filtered",
+          excerpt: expect.stringContaining("needle question"),
+          matching_turn: expect.objectContaining({ recorded_answer: "Answer to question" }),
+        }),
+      ]),
+    );
+    expect((await service.summary("filtered", { query: "not present" })).turns).toEqual([]);
+  });
+
+  it("binds enriched search and filtered summary cursors to their options", async () => {
+    const { service } = fixture();
+    const search = await service.search("timeout", { limit: 1, include_turns: true });
+    await expect(service.search("timeout", { cursor: search.next_cursor! })).rejects.toMatchObject({
+      code: "invalid_cursor",
+    });
+    const summary = await service.summary("earlier-claude", { query: "the", limit: 1 });
+    expect(summary.next_cursor).toEqual(expect.any(String));
+    await expect(
+      service.summary("earlier-claude", { cursor: summary.next_cursor!, query: "other" }),
+    ).rejects.toMatchObject({ code: "invalid_cursor" });
+    await expect(service.summary("earlier-claude", { query: "x" })).rejects.toMatchObject({
+      code: "invalid_query",
+    });
+  });
+
+  it("defaults summaries to ten turns and accepts up to fifty within the byte cap", async () => {
+    const { service, writeSession } = fixture();
+    writeSession(
+      "many-turns",
+      Array.from({ length: 12 }, (_, i) => [
+        prompt(`Question ${i}`),
+        ...(i === 0
+          ? Array.from({ length: 110 }, (_, j) => [
+              call(`read-${j}`, "Read", { file_path: "/work/demo/file.ts" }),
+              result(`read-${j}`, "raw output"),
+            ]).flat()
+          : []),
+        say(`Answer ${i}`),
+      ]).flat(),
+    );
+    const first = await service.summary("many-turns");
+    expect(first.turns).toHaveLength(10);
+    expect(first.turns).toEqual(
+      expect.arrayContaining([expect.objectContaining({ tool_calls: 110 })]),
+    );
+    expect(first.next_offset).toBe(10);
+    const last = await service.summary("many-turns", { cursor: first.next_cursor!, limit: 50 });
+    expect(last.turns).toHaveLength(2);
+    expect(last.next_cursor).toBeNull();
+    await expect(service.summary("many-turns", { limit: 51 })).rejects.toMatchObject({
+      code: "invalid_page",
+    });
+  });
+
   it("warns when the granted scope holds no recorded sessions", async () => {
     const { list, service } = fixture();
     expect(await service.search("timeout")).not.toHaveProperty("scope_warning");
@@ -945,7 +1310,10 @@ describe("MCP page reporting", () => {
     const ids = Array.from({ length: 6 }, (_, i) => `huge-${i}`);
     for (const id of ids)
       truncateSync(writeSession(id, [prompt("timeout")]), MAX_TRANSCRIPT_BYTES + 1);
-    const service = track(new HistoryService(list, { project: "/work/demo" }));
+    const listing = await list();
+    for (const id of ids)
+      listing.files.get(id)!.reader = { ...claudeReader, scanEvents: undefined };
+    const service = track(new HistoryService(async () => listing, { project: "/work/demo" }));
     let page = await service.search("timeout", { limit: 5 });
     let named = (page.skipped as unknown[]).length;
     let omitted = (page.skipped_omitted as number | undefined) ?? 0;

@@ -7,6 +7,8 @@ import {
 import { render } from "preact";
 import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { SessionPage } from "../features/session/session-page.js";
+import { sessionNeighbors } from "../features/session/session-neighbors.js";
+import { SessionPager } from "../features/session/session-pager.js";
 import { projectName } from "../shared/format.js";
 import { Library, type SessionLibrary } from "../features/library/library.js";
 import {
@@ -67,6 +69,10 @@ function App() {
     [scopedSessions, preferences.sessions, navigationQuery, search.matches],
   );
   const selectedSummary = sessions.find((session) => session.id === selectedId);
+  const neighbors = useMemo(
+    () => sessionNeighbors(scopedSessions, selectedId),
+    [scopedSessions, selectedId],
+  );
   const navigationOpen = layoutMode === "navigation";
   const focusMode = layoutMode === "focus";
 
@@ -198,6 +204,9 @@ function App() {
                 </>
               )}
             </div>
+            {selectedId && (
+              <SessionPager neighbors={neighbors} annotations={preferences.sessions} />
+            )}
             <label class="global-search">
               <MagnifyingGlassIcon size={16} />
               <input

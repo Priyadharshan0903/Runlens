@@ -88,13 +88,30 @@ describe("Runlens MCP stdio", () => {
       ).toBe(true);
       const search = await client.callTool({
         name: "search_sessions",
-        arguments: { query: "recurring search timeout" },
+        arguments: { query: "recurring search timeout", include_turns: true },
       });
       const data = parsed(search);
       expect(data.results.map((item: { agent: string }) => item.agent).sort()).toEqual([
         "claude",
         "codex",
       ]);
+      expect(
+        data.results.find((item: { session_id: string }) => item.session_id === "earlier-claude"),
+      ).toMatchObject({
+        matching_turn: {
+          recorded_answer: "Cancelled the superseded request. The focused search test passed.",
+        },
+      });
+      const filtered = parsed(
+        await client.callTool({
+          name: "session_summary",
+          arguments: { id: "earlier-claude", query: "keyboard", limit: 50 },
+        }),
+      );
+      expect(filtered).toMatchObject({
+        turns: [{ asked: "What should we do next?", recorded_answer: "Check the keyboard path." }],
+        next_cursor: null,
+      });
       expect(JSON.stringify(search)).not.toContain("different-project");
       expect(Buffer.byteLength(JSON.stringify(search))).toBeLessThan(MAX_RESPONSE_BYTES * 3);
       const summary = await client.callTool({
@@ -153,7 +170,7 @@ describe("Runlens MCP stdio", () => {
     }
   });
 
-  it("returns successful partial data for an oversized transcript and accepts search and summary cursors", async () => {
+  it("recovers an oversized transcript and accepts search and summary cursors", async () => {
     const history = mcpFixture();
     const oversized = history.writeSession("oversized", [
       prompt("timeout in an oversized session"),
@@ -171,7 +188,8 @@ describe("Runlens MCP stdio", () => {
       expect(first.isError).toBeUndefined();
       expect(data).toMatchObject({
         partial: true,
-        skipped: [{ session_id: "oversized", reason: "transcript_size" }],
+        results: [{ session_id: "oversized" }],
+        skipped: [],
       });
       expect(data.next_cursor).toEqual(expect.any(String));
       const second = await client.callTool({

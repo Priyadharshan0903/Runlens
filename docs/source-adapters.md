@@ -40,6 +40,12 @@ Create `src/sources/<agent>/reader.ts`, implementing `SourceReader`:
 - `readEvents(file, signal)`: yield common events for search, decoding and filtering the agent's
   records first. Keep any decoder state inside this iterator when records depend on previous ones.
   Honor cancellation and release file handles in `finally`, including when search stops early.
+- `scanEvents(file, signal, options)` (optional): provide bounded MCP reads with byte checkpoints
+  and normalized events, preserving decoder state across yields. Claude/Codex use `scanRecords`
+  with `options.maxRecordBytes`; it emits raw-byte checkpoints, record objects and oversized-record
+  diagnostics. Forward checkpoints without decoding them, decode records as usual, and flush the
+  decoder at EOF. This counts ignored/tool-only records toward the per-call byte budget. Readers
+  without this method retain the legacy 8 MiB per-file cap and file-size reservation.
 
 Register the object once in `sourceReaders`. A new source is picked up by the shared discovery,
 loading, search, project grouping, and session features. Agent-specific CLI flags or a new source

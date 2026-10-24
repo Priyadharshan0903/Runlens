@@ -101,6 +101,15 @@ pause while viewing a session, where the sidebar returns to the full library.
 
 ## Inspect a session
 
+Use **Previous** and **Next** beside the project breadcrumb to move between chats without returning
+to the library. They follow the current project's most recently updated order and respect the chosen
+agent. The count shows your position in that project; hovering a control shows the destination's
+title, including any name you gave it. The controls stay visible while you scroll, load a chat, or
+encounter a loading error, and disable at the first/last chat. Tab to a link and press Enter to open
+it; browser Back/Forward still follow your navigation history. On narrow screens the controls use
+arrow icons with the same accessible names. The sequence includes the full project, beyond the
+sidebar's five rows and the library's 40-row pages.
+
 | View         | What it shows                                                                                                                                                           |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Timeline     | Prompts, tool calls, outputs, recorded context, interruptions, and final answers. The activity strip jumps to a call and opens its collapsed ancestors.                 |

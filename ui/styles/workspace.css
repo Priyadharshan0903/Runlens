@@ -440,6 +440,7 @@
   align-items: center;
   gap: 8px;
   width: min(36vw, 360px);
+  min-width: 0;
   height: 32px;
   color: var(--muted);
 }
@@ -448,6 +449,7 @@
   border: 0;
   outline: none;
   width: 100%;
+  min-width: 0;
   font-size: 13px;
   color: var(--ink);
 }

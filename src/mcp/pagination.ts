@@ -136,7 +136,12 @@ export class HistoryPagination {
             [scan.field]: items.map((item) => item.value),
             next_offset: done ? null : scan.offset + oversized + items.length,
             next_cursor: done ? null : cursor,
-            partial: !done || oversized > 0 || scan.budget.progress.skipped_transcripts > 0,
+            partial:
+              !done ||
+              oversized > 0 ||
+              scan.budget.progress.skipped_transcripts > 0 ||
+              scan.budget.progress.skipped_records > 0 ||
+              scan.budget.progress.skipped_turns > 0,
             stop_reason: stopReason,
             scan_progress: { ...scan.budget.progress },
             skipped: [...scan.budget.skipped],

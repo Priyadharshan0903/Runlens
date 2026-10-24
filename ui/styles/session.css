@@ -1,3 +1,35 @@
+.session-pager {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.session-pager-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: var(--ink-2);
+}
+.session-pager-link:not([aria-disabled="true"]):hover {
+  color: var(--ink);
+  background: var(--surface-2);
+}
+.session-pager-link[aria-disabled="true"] {
+  color: var(--muted);
+  cursor: default;
+}
+.session-position {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  padding: 0 4px;
+}
+
 .session-scroll-control {
   position: absolute;
   right: 24px;

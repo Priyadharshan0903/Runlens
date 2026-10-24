@@ -108,6 +108,14 @@
   .global-search kbd {
     display: none;
   }
+  .session-pager-link {
+    width: 44px;
+    min-height: 44px;
+    padding: 0;
+  }
+  .session-pager-link > span {
+    display: none;
+  }
   .page-heading {
     align-items: flex-start;
   }

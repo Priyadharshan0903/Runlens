@@ -34,17 +34,18 @@ The UI uses Preact and follows the same state model as React: store user choices
 results, then derive what the screen displays. A smaller state count alone is not a design goal;
 clear ownership and consistent transitions are.
 
-| Owner                                            | Responsibility                                                                                            |
-| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
-| `ui/app/app.tsx`                                 | URL navigation, workspace layout, agent scope, and shared search input.                                   |
-| `ui/features/library/library.tsx`                | Library project/date filters and sorting; each result set owns its pagination.                            |
-| `ui/features/library/session-navigation.tsx`     | Project expansion and row limits; grouping follows the saved preference.                                  |
-| `ui/features/library/use-session-search.ts`      | One transcript search request, enabled on the library route and shared with navigation.                   |
-| `ui/features/session/session-page.tsx`           | The selected session request and session-view navigation. Changing session identity resets its view.      |
-| `ui/features/session/inspector.tsx`              | A local notes draft and clipboard feedback. Notes persist after a 400 ms pause or on blur.                |
-| `ui/features/session/session-scroll-control.tsx` | The page's jump direction, measured from the scroll container. Scroll updates stay inside this component. |
-| `ui/shared/use-resource.ts`                      | One request snapshot, cancellation, debounce, refresh, and optional polling.                              |
-| `ui/shared/use-preferences.ts`                   | Browser-local annotations and preferences, with stable update callbacks.                                  |
+| Owner                                            | Responsibility                                                                                             |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `ui/app/app.tsx`                                 | URL navigation, workspace layout, agent scope, and shared search input.                                    |
+| `ui/features/library/library.tsx`                | Library project/date filters and sorting; each result set owns its pagination.                             |
+| `ui/features/library/session-navigation.tsx`     | Project expansion and row limits; grouping follows the saved preference.                                   |
+| `ui/features/library/use-session-search.ts`      | One transcript search request, enabled on the library route and shared with navigation.                    |
+| `ui/features/session/session-page.tsx`           | The selected session request and session-view navigation. Changing session identity resets its view.       |
+| `ui/features/session/session-pager.tsx`          | Previous/next chat links in the fixed top bar; neighbors derive from the agent scope and project identity. |
+| `ui/features/session/inspector.tsx`              | A local notes draft and clipboard feedback. Notes persist after a 400 ms pause or on blur.                 |
+| `ui/features/session/session-scroll-control.tsx` | The page's jump direction, measured from the scroll container. Scroll updates stay inside this component.  |
+| `ui/shared/use-resource.ts`                      | One request snapshot, cancellation, debounce, refresh, and optional polling.                               |
+| `ui/shared/use-preferences.ts`                   | Browser-local annotations and preferences, with stable update callbacks.                                   |
 
 Counts, matching rows, agent rosters, and file summaries are derived from source data. Expensive
 session summaries are memoized per loaded transcript. Tool inputs are indexed only when an
@@ -79,7 +80,12 @@ limits; `history.ts` projects normalized reader events; `scan.ts` owns per-call 
 skip diagnostics; `pagination.ts` retains bounded process-local cursors and closes suspended readers;
 `server.ts` exposes the two stdio tools. Cursor pages keep adapter decoder state, stream completed
 turns and preserve collected entries at budget boundaries. Bind cursors to the operation, normalized
-query/session and granted project, and keep request abort signals separate from reader lifetimes.
+query/session, search detail option and granted project, and keep request abort signals separate
+from reader lifetimes.
+Claude/Codex `scanEvents` readers emit raw-byte checkpoints even for records without normalized
+events. Keep their decoders alive across page boundaries; never impose a whole-file size skip on
+these bounded readers. Cap individual JSONL records and retained turn/parent projections instead.
+Search can attach a matching turn; summary queries filter projected messages before excerpting.
 Do not route MCP through the viewer's broad transcript search, which includes raw tool content.
 The official server SDK, shared core and Zod are bundled into the CLI and their licenses into
 the notices. The client SDK is a development dependency for synthetic protocol checks. Discovery

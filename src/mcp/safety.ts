@@ -5,6 +5,8 @@ import type { Listing } from "../core/discover.js";
 
 export const MAX_RESPONSE_BYTES = 16_384;
 export const MAX_TRANSCRIPT_BYTES = 8 * 1024 * 1024;
+export const MAX_RECORD_BYTES = 8 * 1024 * 1024;
+export const MAX_PROJECTION_BYTES = 8 * 1024 * 1024;
 export const MAX_SCAN_BYTES = 32 * 1024 * 1024;
 export const MAX_SCAN_EVENTS = 50_000;
 export const HISTORY_WARNING =

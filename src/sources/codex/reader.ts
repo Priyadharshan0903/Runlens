@@ -2,7 +2,7 @@ import { ownEvents, type Event } from "../../core/events.js";
 import { buildTurns } from "../../core/tree.js";
 import type { AgentRun, Session } from "../../core/types.js";
 import type { SearchFile, SourceReader } from "../types.js";
-import { streamRecords } from "../jsonl.js";
+import { streamRecords, scanRecords, type RecordScanOptions } from "../jsonl.js";
 import { childSessions, defaultRoots, discover, inheritedFile } from "./discover.js";
 import { CodexDecoder, readTranscript } from "./parse.js";
 
@@ -13,6 +13,7 @@ export const codexReader: SourceReader = {
   load,
   searchFiles,
   readEvents,
+  scanEvents,
 };
 
 async function load(file: string): Promise<Omit<Session, "source">> {
@@ -89,5 +90,18 @@ async function* searchFiles(file: string): AsyncIterable<SearchFile> {
 async function* readEvents(file: string, signal?: AbortSignal): AsyncIterable<Event> {
   const decoder = new CodexDecoder();
   for await (const record of streamRecords(file, signal)) yield* decoder.decode(record);
+  yield* decoder.finish();
+}
+
+async function* scanEvents(
+  file: string,
+  signal: AbortSignal | undefined,
+  options: RecordScanOptions,
+) {
+  const decoder = new CodexDecoder();
+  for await (const record of scanRecords(file, signal, options)) {
+    if (record.kind === "record") yield* decoder.decode(record.value);
+    else yield record;
+  }
   yield* decoder.finish();
 }

@@ -1,5 +1,38 @@
 # Changelog
 
+### 2026-10-24 — Previous and next chats
+
+- Add Previous/Next links and a position count beside the project breadcrumb in the fixed top bar.
+  Browse the current project's full chat history in newest-first order, respecting the agent scope.
+  Include sessions beyond the sidebar and library page limits; disable navigation at the ends.
+- Show destination titles, including browser-local renames, in hover text and accessible names.
+  Keep controls available during scrolling, loading and session errors, with native link keyboard
+  navigation and compact arrow controls on narrow screens.
+- Add regressions for project identity, grouped subfolders, source scope, empty/single sessions,
+  boundaries, stable ordering and navigation beyond 40 sessions. Browser verification remains with
+  the user, as requested in `AGENTS.md`.
+
+### 2026-10-24 — Matching-turn retrieval and large-session recovery
+
+- Add optional `include_turns` to search: return the first matching question, recorded answer
+  and bounded successful-change/failure facts together. Keep excerpt-only search as the default.
+- Add a summary `query` for matching turns in recorded order, including hits beyond excerpt caps.
+  Default summaries to ten turns and allow up to fifty, still within the 16 KiB response cap.
+  Bind cursors to search detail and summary query options.
+- Exclude IDE opened-file boilerplate from MCP prompt excerpts and matching. Keep raw tool/web
+  payloads, thinking and secrets outside searchable/returned history.
+- Stream large Claude/Codex transcripts with raw-byte checkpoints and retained decoder state;
+  preserve the 32 MiB/50,000-event per-call budgets without discarding whole oversized files.
+  Skip individual records over 8 MiB and continue, with explicit partial-coverage diagnostics.
+- Bound retained turn and parent projections to 8 MiB. Report omitted turn groups and skip forks
+  without complete parent evidence. Retain the legacy file-size cap for adapters without checkpoints.
+- Add mixed-agent retrieval, filtered/default paging, 110-call turns, raw-byte/UTF-8 boundaries,
+  oversized-record recovery, parent isolation and real MCP-client contract regressions. Compare
+  synthetic response bytes without claiming measured token or monetary savings.
+- Validation: all 160 server-free tests, types and the production build pass. Repository formatting
+  passes with the pre-existing `.claude/settings.local.json` formatting issue excluded; that personal
+  file remains untouched and still prevents the unmodified `npm run check` command from finishing.
+
 ### 2026-10-23 — Queued MCP scans, cursor lifetimes and path identity
 
 - Match startup grants, tool projects and recorded working directories by on-disk identity
