@@ -94,14 +94,14 @@ share “Home / no project” and cannot absorb other projects. A newly recorded
 existing inferred groups when the library refreshes. Git repositories, nested repositories, and
 worktrees follow this same directory rule.
 
-Global search covers every project and filters the sidebar and library through one shared search
-request. Matching project groups open while searching; clearing search restores manual expansion
-choices. Library-specific project, date, and pin filters do not narrow the sidebar. Search requests
-pause while viewing a session, where the sidebar returns to the full library.
+The centered search field in the top bar covers every project and filters the sidebar and library
+through one shared search request. Matching project groups open while searching; clearing search
+restores manual expansion choices. Library-specific project, date, and pin filters do not narrow
+the sidebar. Search requests pause while viewing a session, where the sidebar returns to the full library.
 
 ## Inspect a session
 
-Use **Previous** and **Next** beside the project breadcrumb to move between chats without returning
+Use **Previous** and **Next** on the right of the top bar to move between chats without returning
 to the library. They follow the current project's most recently updated order and respect the chosen
 agent. The count shows your position in that project; hovering a control shows the destination's
 title, including any name you gave it. The controls stay visible while you scroll, load a chat, or

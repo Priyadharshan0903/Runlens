@@ -410,10 +410,22 @@
 }
 .topbar {
   padding: 0 28px 0 22px;
+  display: grid;
+  /* Equal side tracks keep search centered in the workspace, regardless of the breadcrumb. */
+  grid-template-columns: minmax(0, 1fr) minmax(240px, min(40%, 520px)) minmax(0, 1fr);
+  align-items: center;
+  gap: 20px;
+  min-width: 0;
+}
+.topbar-location,
+.topbar-actions {
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 16px;
   min-width: 0;
+}
+.topbar-actions {
+  justify-content: flex-end;
 }
 .breadcrumb {
   display: flex;
@@ -428,6 +440,7 @@
   display: flex;
   align-items: center;
   gap: 6px;
+  flex: none;
 }
 .crumb-current {
   color: var(--ink-2);
@@ -438,11 +451,22 @@
 .global-search {
   display: flex;
   align-items: center;
-  gap: 8px;
-  width: min(36vw, 360px);
+  gap: 10px;
+  width: 100%;
   min-width: 0;
-  height: 32px;
+  height: 38px;
+  padding: 0 10px 0 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--bg);
   color: var(--muted);
+  cursor: text;
+}
+.global-search > svg {
+  flex: none;
+}
+.global-search:hover {
+  border-color: var(--muted);
 }
 .global-search input {
   background: none;
@@ -455,15 +479,28 @@
 }
 .global-search:focus-within {
   color: var(--ink);
+  border-color: var(--accent);
+  background: var(--surface);
+  outline: 2px solid var(--accent-soft);
+  outline-offset: 2px;
+}
+.global-search:focus-within > svg {
+  color: var(--accent);
 }
 .global-search input::placeholder {
   color: var(--faint);
 }
 .global-search kbd {
   flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 22px;
   font-size: 11px;
-  border: 1px solid var(--line-strong);
-  border-radius: 4px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--frame);
   padding: 0 5px;
   color: var(--muted);
 }

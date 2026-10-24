@@ -1,5 +1,14 @@
 # Changelog
 
+### 2026-10-24 — Centered history search
+
+- Center global search in the workspace with equal side tracks: project navigation on the left,
+  Previous/Next chat navigation on the right. Keep search centered when the sidebar is collapsed.
+- Give search a framed command-bar surface, larger search icon, keyboard keycap and clear accent
+  focus treatment in both themes. Keep the existing search behavior and keyboard shortcut.
+- Use compact navigation arrows on narrower laptop layouts and retain a flexible search field on
+  small screens. Browser verification remains with the user, as requested in `AGENTS.md`.
+
 ### 2026-10-24 — Previous and next chats
 
 - Add Previous/Next links and a position count beside the project breadcrumb in the fixed top bar.
