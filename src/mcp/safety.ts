@@ -57,11 +57,16 @@ export function excerpt(text: string, limit = 240): string {
 }
 
 export interface HistoryPolicy {
-  /** Explicit startup project, or the MCP process's working directory. */
-  project: string;
+  /** Explicit startup project, or the MCP process's working directory. Unused with allProjects. */
+  project?: string;
   /** Startup grants; a tool argument alone cannot grant cross-project access. */
   allowProjects?: string[];
+  /** Startup grant for every recorded project on this machine; still never set by a tool call. */
+  allProjects?: boolean;
 }
+
+/** The scope of an all-projects grant when a tool call names no project. */
+export const ALL_PROJECTS = "*";
 
 /**
  * Resolve symlinks and on-disk letter case, so `~/desktop/projects` matches transcripts that
@@ -82,7 +87,10 @@ export function canonicalPath(path: string): string {
 }
 
 export function requestedScope(policy: HistoryPolicy, project?: string): string {
-  const selected = project ?? policy.project;
+  const selected = project ?? (policy.allProjects ? ALL_PROJECTS : policy.project);
+  if (selected === ALL_PROJECTS && policy.allProjects) return ALL_PROJECTS;
+  if (selected === undefined)
+    throw new HistoryError("invalid_project", "Configure a startup project or --all-projects.");
   if (!isAbsolute(selected))
     throw new HistoryError("invalid_project", "Project must be an absolute directory path.");
   const path = canonicalPath(selected);
@@ -91,13 +99,20 @@ export function requestedScope(policy: HistoryPolicy, project?: string): string 
       "invalid_project",
       "Choose a project directory, not home or a filesystem root.",
     );
-  const allowed = [policy.project, ...(policy.allowProjects ?? [])].map(canonicalPath);
+  if (policy.allProjects) return path;
+  const allowed = grantedScopes(policy).map(canonicalPath);
   if (!allowed.includes(path))
     throw new HistoryError(
       "project_not_allowed",
-      "This project has no startup access grant. Restart with --allow-project <path> to grant it.",
+      `This project has no startup access grant. Granted: ${allowed.map((scope) => JSON.stringify(scope)).join(", ")}. Restart with --allow-project <path> or --all-projects to grant it.`,
     );
   return path;
+}
+
+/** Startup project first, then explicit grants, in the order given. */
+export function grantedScopes(policy: HistoryPolicy): string[] {
+  if (policy.allProjects) return [ALL_PROJECTS];
+  return [...(policy.project ? [policy.project] : []), ...(policy.allowProjects ?? [])];
 }
 
 /** Reuse the viewer's directory identity; never infer projects from names or Git. */
@@ -105,6 +120,7 @@ export function scopeListing(
   listing: Listing,
   directory: string,
 ): { listing: Listing; project: string } {
+  if (directory === ALL_PROJECTS) return { project: directory, listing };
   const isWithin = (path: string, base: string) => {
     const inside = relative(base, path);
     return (

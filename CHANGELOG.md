@@ -1,5 +1,15 @@
 # Changelog
 
+### 2026-10-24 — All-projects MCP access and ID lookup
+
+- Add `runlens mcp --all-projects`, an opt-in startup grant for every recorded project on the
+  machine. Omitting `project` then searches all sessions, newest first, and each search result names
+  its project. It cannot be combined with `--project`/`--allow-project` or selected by a tool argument.
+- `session_summary` without `project` finds an ID in any startup grant and accepts the bare ID a
+  client displays (e.g. a Codex UUID without `codex--`).
+- Errors now say when an ID exists outside the grants, and `project_not_allowed` lists the active
+  grants, so users know which grant to add.
+
 ### 2026-10-24 — Compact MCP output controls
 
 - Default summaries and expanded search turns to 200-character extractive gists with changed-file,

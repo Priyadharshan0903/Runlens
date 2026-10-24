@@ -146,6 +146,58 @@ describe("MCP safety contract", () => {
     ).toContain("different-project");
   });
 
+  it("searches every recorded project only with an --all-projects startup grant", async () => {
+    const { list } = fixture();
+    const all = track(new HistoryService(list, { allProjects: true }));
+    expect(all.defaultProject).toBe("*");
+    const everywhere = await all.search("timeout", { limit: 5 });
+    expect(everywhere.project).toBe("*");
+    const results = everywhere.results as { session_id: string; project?: string }[];
+    expect(results.map((result) => result.session_id).sort()).toEqual([
+      "codex--later-codex",
+      "different-project",
+      "earlier-claude",
+    ]);
+    expect(results.find((result) => result.session_id === "different-project")?.project).toBe(
+      "/personal/demo",
+    );
+    const narrowed = await all.search("timeout", { project: "/personal/demo", limit: 5 });
+    expect((narrowed.results as unknown[]).length).toBe(1);
+    expect(JSON.stringify(narrowed)).toContain("different-project");
+    await expect(all.search("timeout", { project: homedir() })).rejects.toMatchObject({
+      code: "invalid_project",
+    });
+    // A tool argument cannot select the all-projects scope without the startup grant.
+    const { service } = fixture();
+    await expect(service.search("timeout", { project: "*" })).rejects.toMatchObject({
+      code: "invalid_project",
+    });
+  });
+
+  it("finds a summary by bare client ID in any granted project, without widening scope", async () => {
+    const { list, service } = fixture();
+    const codex = await service.summary("later-codex");
+    expect(codex.session_id).toBe("codex--later-codex");
+    await expect(service.summary("different-project")).rejects.toMatchObject({
+      code: "session_not_found",
+      message: expect.stringContaining("outside the granted projects"),
+    });
+    await expect(service.summary("never-recorded")).rejects.toMatchObject({
+      message: "Session not found in any granted project.",
+    });
+    const granted = track(
+      new HistoryService(list, { project: "/work/demo", allowProjects: ["/personal/demo"] }),
+    );
+    const other = await granted.summary("different-project");
+    expect(other.project).toBe("/personal/demo");
+    await expect(
+      granted.summary("different-project", { project: "/work/demo" }),
+    ).rejects.toMatchObject({ code: "session_not_found" });
+    await expect(granted.search("timeout", { project: "/private/no-grant" })).rejects.toThrow(
+      /Granted: "\/work\/demo", "\/personal\/demo"/,
+    );
+  });
+
   it("matches grants and recorded folders by on-disk identity, not spelling", async () => {
     const real = mkdtempSync(join(tmpdir(), "runlens-Identity-"));
     const link = `${real}-link`;

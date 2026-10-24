@@ -1111,10 +1111,26 @@ figcaption {
     margin-top: 40px;
   }
 }
-.independent {
+.footer-legal {
+  display: flex;
+  gap: 12px 26px;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-top: 28px;
   color: var(--muted);
   font-size: 13px;
-  margin-top: 28px;
+}
+.credit a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: text-decoration-color 250ms var(--ease);
+}
+.credit a:hover,
+.credit a:focus-visible {
+  text-decoration-color: currentColor;
 }
 
 .screenshot-link {

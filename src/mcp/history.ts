@@ -14,7 +14,9 @@ import {
 } from "./projection.js";
 import { ScanBudget, type ScanPause, type ScanRecord } from "./scan.js";
 import {
+  ALL_PROJECTS,
   excerpt,
+  grantedScopes,
   HistoryError,
   MAX_RECORD_BYTES,
   MAX_PROJECTION_BYTES,
@@ -59,6 +61,15 @@ export class HistoryService {
     return requestedScope(this.policy);
   }
 
+  get allProjects(): boolean {
+    return this.policy.allProjects ?? false;
+  }
+
+  /** Every startup grant, for instructions and errors; never widened by a tool call. */
+  get grants(): string[] {
+    return grantedScopes(this.policy).map((scope) => requestedScope(this.policy, scope));
+  }
+
   close() {
     this.pagination.close();
   }
@@ -95,7 +106,14 @@ export class HistoryService {
         },
         field: "results",
         budget,
-        iterator: searchSessions(listing, normalized, budget, includeTurns, projection),
+        iterator: searchSessions(
+          listing,
+          normalized,
+          budget,
+          includeTurns,
+          projection,
+          directory === ALL_PROJECTS,
+        ),
         offset,
         remainingOffset: offset,
       },
@@ -115,21 +133,46 @@ export class HistoryService {
     const directory = requestedScope(this.policy, request.project);
     const key = JSON.stringify(["summary", directory, id, query, projection.key]);
     if (request.cursor) return this.pagination.resume(request.cursor, key, limit, signal);
-    const { listing, project } = await this.scoped(request.project, signal);
-    const session = listing.sessions.find((item) => item.id === id);
-    const entry = listing.files.get(id);
-    if (!session || !entry)
+    // Session IDs are unique, so an omitted project looks through every startup grant in order.
+    const scopes = request.project === undefined ? this.grants : [directory];
+    signal?.throwIfAborted();
+    const all = await this.list(signal);
+    signal?.throwIfAborted();
+    let found: { session: SessionSummary; entry: SessionFile; project: string } | undefined;
+    let scopedSessions = 0;
+    for (const scope of scopes) {
+      const { listing, project } = scopeListing(all, scope);
+      scopedSessions += listing.sessions.length;
+      const session = findSession(listing, id);
+      const entry = session && listing.files.get(session.id);
+      if (session && entry) {
+        found = { session, entry, project };
+        break;
+      }
+    }
+    if (!found)
       throw new HistoryError(
         "session_not_found",
-        listing.sessions.length
-          ? "Session not found in the selected project."
-          : `Session not found. ${EMPTY_SCOPE}`,
+        findSession(all, id)
+          ? `This session exists but ran outside the granted projects. Ask the user to grant its folder at startup with --allow-project <path> or --all-projects, then reconnect.${scopedSessions ? "" : ` ${EMPTY_SCOPE}`}`
+          : !scopedSessions
+            ? `Session not found. ${EMPTY_SCOPE}`
+            : request.project === undefined
+              ? "Session not found in any granted project."
+              : "Session not found in the selected project.",
       );
+    const { session, entry, project } = found;
     const budget = new ScanBudget();
     return this.pagination.page(
       {
         key,
-        base: { ...provenance(session), project: excerpt(project, 512) },
+        base: {
+          ...provenance(session),
+          project: excerpt(
+            project === ALL_PROJECTS ? (session.project?.path ?? project) : project,
+            512,
+          ),
+        },
         field: "turns",
         budget,
         iterator: summaryTurns(entry, budget, projection, query),
@@ -140,6 +183,14 @@ export class HistoryService {
       signal,
     );
   }
+}
+
+/** Accept the ID a client displays too: Codex shows `<uuid>`, Runlens lists `codex--<uuid>`. */
+function findSession(listing: Listing, id: string) {
+  return (
+    listing.sessions.find((session) => session.id === id) ??
+    listing.sessions.find((session) => session.id === `${session.source.id}--${id}`)
+  );
 }
 
 function normalizeQuery(query: string) {
@@ -193,6 +244,7 @@ async function* searchSessions(
   budget: ScanBudget,
   includeTurns: boolean,
   projection: ProjectionOptions,
+  withProject: boolean,
 ): AsyncGenerator<ScanRecord> {
   for (const [index, session] of listing.sessions.entries()) {
     budget.signal.throwIfAborted();
@@ -251,7 +303,14 @@ async function* searchSessions(
     if (match)
       yield {
         kind: "item",
-        value: { ...provenance(session), ...match },
+        value: {
+          ...provenance(session),
+          // One all-projects page mixes projects; name each so follow-ups can narrow the scope.
+          ...(withProject && session.project?.path
+            ? { project: excerpt(session.project.path, 512) }
+            : {}),
+          ...match,
+        },
         last: index === listing.sessions.length - 1,
       };
   }

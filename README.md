@@ -140,8 +140,10 @@ and date, then check the recorded approach against the current code.”
 
 `"$PWD"` captures your current folder during registration; you do not need to type its path. Access
 stays fixed when you change folders. Use a distinct server name for another project or explicitly
-grant it with `--allow-project` and reconnect. Agents cannot grant themselves access, and remembered
-or interactive project approvals are not implemented.
+grant it with `--allow-project` and reconnect. To search history from every project on this machine,
+register once at user scope with `--all-projects` instead of `--project` (see
+[all-projects access](docs/mcp.md#all-projects-access)). Agents cannot grant themselves access, and
+remembered or interactive project approvals are not implemented.
 MCP responses contain bounded, masked history and may reach your agent's model provider.
 Search and summary pages include resumable cursors and scan progress. Large transcripts stream
 across cursor pages; oversized individual records are reported as skips while later records remain
