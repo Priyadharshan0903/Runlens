@@ -94,14 +94,24 @@ try {
     await client.connect(transport);
     assert.deepEqual(
       (await client.listTools()).tools.map((tool) => tool.name),
-      ["search_sessions", "session_summary"],
+      ["search_sessions", "session_summary", "list_sessions", "list_projects", "file_history"],
     );
-    const result = await client.callTool({
-      name: "search_sessions",
-      arguments: { query: "synthetic" },
-    });
-    assert.equal(result.isError, undefined);
-    assert.deepEqual(result.structuredContent?.results, []);
+    for (const [name, args] of [
+      ["search_sessions", { query: "synthetic" }],
+      ["list_sessions", {}],
+      ["file_history", { path: "src/synthetic.ts" }],
+    ]) {
+      const result = await client.callTool({ name, arguments: args });
+      assert.equal(result.isError, undefined, `${name} must succeed on empty history.`);
+      assert.deepEqual(result.structuredContent?.results, [], `${name} must find nothing.`);
+    }
+    const projects = await client.callTool({ name: "list_projects", arguments: {} });
+    assert.equal(projects.isError, undefined, "list_projects must succeed on empty history.");
+    assert.deepEqual(
+      projects.structuredContent?.results.map((entry) => entry.sessions),
+      [0],
+      "list_projects must report the startup grant with no sessions.",
+    );
   } finally {
     await client.close();
   }
