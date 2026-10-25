@@ -38,7 +38,7 @@ Runlens discovers Claude history under `~/.claude/projects`, `CLAUDE_CONFIG_DIR`
 ## What you can inspect
 
 - **Conversations and timelines:** human questions beside agent answers, with expandable tool calls.
-  Move between chats in the same project with Previous/Next in the top bar.
+  Move between chats with Previous/Next in the top bar, following the sidebar's project or date order.
 - **File changes and failures:** recorded patches, command output, and failed calls in one session.
 - **Subagents:** follow child runs and their tool activity.
 - **Search and organization:** search transcripts from the centered top bar, pick an agent, group by project or date, and filter the library.

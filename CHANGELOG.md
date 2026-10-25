@@ -1,5 +1,12 @@
 # Changelog
 
+### 2026-10-25 — Session pager across projects and days
+
+- Previous/Next in the top bar no longer stop at the current project. They follow the sidebar's
+  grouping: by project, they finish one project newest first and continue into the next; by date,
+  they walk every chat newest first across days. The count is now your position among all chats.
+  The agent filter still applies.
+
 ### 2026-10-24 — MCP discovery tools
 
 - Add a read-only `list_sessions` MCP tool that returns session metadata newest first (ID, agent,

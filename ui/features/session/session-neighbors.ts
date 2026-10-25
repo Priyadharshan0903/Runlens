@@ -1,5 +1,6 @@
 import type { SessionSummary } from "../../../src/core/types.js";
-import { sessionProject } from "../library/session-list.js";
+import type { SidebarGrouping } from "../../shared/use-preferences.js";
+import { groupSessionsByProject } from "../library/session-list.js";
 
 export interface SessionNeighbors {
   previous?: SessionSummary;
@@ -8,24 +9,27 @@ export interface SessionNeighbors {
   total: number;
 }
 
-/** The caller supplies the agent scope; project identity and ordering match the sidebar. */
+/**
+ * The caller supplies the agent scope. Paging follows the sidebar's order and crosses project
+ * and day boundaries, so the last chat of one group leads to the first chat of the next.
+ */
 export function sessionNeighbors(
   sessions: SessionSummary[],
   selectedId: string | undefined,
+  grouping: SidebarGrouping = "date",
 ): SessionNeighbors | undefined {
-  const selected = sessions.find((session) => session.id === selectedId);
-  if (!selected) return;
+  if (!sessions.some((session) => session.id === selectedId)) return;
 
-  const projectId = sessionProject(selected).id;
-  const projectSessions = sessions
-    .filter((session) => sessionProject(session).id === projectId)
-    .sort((first, second) => second.updatedAt.localeCompare(first.updatedAt));
-  const index = projectSessions.findIndex((session) => session.id === selectedId);
+  const ordered =
+    grouping === "project"
+      ? groupSessionsByProject(sessions).flatMap((group) => group.sessions)
+      : [...sessions].sort((first, second) => second.updatedAt.localeCompare(first.updatedAt));
+  const index = ordered.findIndex((session) => session.id === selectedId);
 
   return {
-    previous: projectSessions[index - 1],
-    next: projectSessions[index + 1],
+    previous: ordered[index - 1],
+    next: ordered[index + 1],
     position: index + 1,
-    total: projectSessions.length,
+    total: ordered.length,
   };
 }
