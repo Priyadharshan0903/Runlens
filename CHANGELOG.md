@@ -1,5 +1,24 @@
 # Changelog
 
+### 2026-10-26 — Transcript and history code readability
+
+- Split Codex record routing into named metadata, message, completed-tool, call, and result
+  handlers. Extract input decoding and output-error detection while retaining per-file state.
+- Separate Claude usage accounting and file-effect handling from record and action routing;
+  replace abbreviated locals, nested content conditionals, and tool-type chains with explicit cases.
+- Flatten Codex command-word and patch parsing, and separate file counts from preview selection.
+  Split MCP search into matching-turn and matching-text scans, preserving pause forwarding and
+  first-match behavior. Replace nested missing-session and message-selection ternaries.
+- Separate summary request validation, granted-session lookup, and scan construction. Keep the
+  summary method focused on those stages and cursor resumption; share cancellation checks around
+  discovery. Add a regression ensuring summary cursors resume without rediscovering sessions.
+- Add regression coverage for mixed Claude content, incomplete multi-edits, duplicate native
+  operations, failed enclosing Codex calls, and pending-call flushes. Document the parsing entry
+  points and readability conventions. No intended behavior or interface changes.
+- Validation: all 186 server-free tests, TypeScript, and the production build pass. Repository
+  formatting passes with `.claude/settings.local.json` excluded; that file's pre-existing formatting
+  issue still blocks the unmodified `npm run check` command. Personal configuration remains untouched.
+
 ### 2026-10-24 — GitHub Packages mirror
 
 - The publish workflow now also publishes each release to GitHub Packages as

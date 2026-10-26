@@ -51,15 +51,27 @@ export function describeTool(
     action.replacement = { before: input.old_string, after: input.new_string };
   }
 
+  const file = describeFileEffect(name, input, action);
+  if (file) action.files = [file];
+  return { summary, action };
+}
+
+function describeFileEffect(
+  name: string,
+  input: Input,
+  action: ToolAction,
+): FileEffect | undefined {
   const path = input.file_path ?? input.notebook_path;
-  if (typeof path === "string" && path) {
-    const effect: FileEffect = {
-      path,
-      operation: action.kind === "change" ? "change" : "read",
-      added: 0,
-      removed: 0,
-    };
-    if (name === "Edit") {
+  if (typeof path !== "string" || !path) return undefined;
+
+  const effect: FileEffect = {
+    path,
+    operation: action.kind === "change" ? "change" : "read",
+    added: 0,
+    removed: 0,
+  };
+  switch (name) {
+    case "Edit":
       effect.added = lines(input.new_string);
       effect.removed = lines(input.old_string);
       if (action.replacement) {
@@ -68,25 +80,31 @@ export function describeTool(
           text: replacementPatch(action.replacement.before, action.replacement.after),
         };
       }
-    } else if (name === "Write") {
+      break;
+    case "Write":
       effect.added = lines(input.content);
       if (typeof input.content === "string") {
         effect.preview = { kind: "content", text: input.content };
       }
-    } else if (name === "MultiEdit" && Array.isArray(input.edits)) {
-      const patches: string[] = [];
-      for (const edit of input.edits) {
-        effect.added += lines(edit?.new_string);
-        effect.removed += lines(edit?.old_string);
-        if (typeof edit?.old_string === "string" && typeof edit?.new_string === "string") {
-          patches.push(replacementPatch(edit.old_string, edit.new_string));
-        }
-      }
-      if (patches.length) effect.preview = { kind: "diff", text: patches.join("\n@@\n") };
-    }
-    action.files = [effect];
+      break;
+    case "MultiEdit":
+      addReplacementEffects(effect, input.edits);
+      break;
   }
-  return { summary, action };
+  return effect;
+}
+
+function addReplacementEffects(effect: FileEffect, edits: unknown) {
+  if (!Array.isArray(edits)) return;
+  const patches: string[] = [];
+  for (const edit of edits) {
+    effect.added += lines(edit?.new_string);
+    effect.removed += lines(edit?.old_string);
+    if (typeof edit?.old_string === "string" && typeof edit?.new_string === "string") {
+      patches.push(replacementPatch(edit.old_string, edit.new_string));
+    }
+  }
+  if (patches.length) effect.preview = { kind: "diff", text: patches.join("\n@@\n") };
 }
 
 function replacementPatch(before: string, after: string): string {
@@ -104,45 +122,48 @@ type Input = Record<string, unknown>;
 
 export function summarizeTool(name: string, rawInput: unknown, cwd?: string): string {
   const input: Input = typeof rawInput === "object" && rawInput !== null ? (rawInput as Input) : {};
-  const s = (key: string) => (typeof input[key] === "string" ? (input[key] as string) : "");
-  const p = (key: string) => shortPath(s(key), cwd);
+  const stringInput = (key: string) =>
+    typeof input[key] === "string" ? (input[key] as string) : "";
+  const pathInput = (key: string) => shortPath(stringInput(key), cwd);
 
   switch (name) {
     case "Bash":
       // "cd /long/path && npm test" → "npm test": the cd is noise, the command is the point.
-      return firstLine(s("command").replace(/^\s*cd\s+("[^"]*"|'[^']*'|\S+)\s*&&\s*/, ""));
+      return firstLine(
+        stringInput("command").replace(/^\s*cd\s+("[^"]*"|'[^']*'|\S+)\s*&&\s*/, ""),
+      );
     case "Read":
-      return p("file_path") + (typeof input.offset === "number" ? `:${input.offset}` : "");
+      return pathInput("file_path") + (typeof input.offset === "number" ? `:${input.offset}` : "");
     case "Write":
-      return `${p("file_path")} (${lines(s("content"))} lines)`;
+      return `${pathInput("file_path")} (${lines(stringInput("content"))} lines)`;
     case "Edit": {
-      const added = lines(s("new_string"));
-      const removed = lines(s("old_string"));
-      return `${p("file_path")} (+${added} −${removed})${input.replace_all ? " all" : ""}`;
+      const added = lines(stringInput("new_string"));
+      const removed = lines(stringInput("old_string"));
+      return `${pathInput("file_path")} (+${added} −${removed})${input.replace_all ? " all" : ""}`;
     }
     case "MultiEdit":
-      return `${p("file_path")} (${Array.isArray(input.edits) ? input.edits.length : 0} edits)`;
+      return `${pathInput("file_path")} (${Array.isArray(input.edits) ? input.edits.length : 0} edits)`;
     case "Grep":
       return (
-        `"${s("pattern")}"` +
-        (s("path") ? ` in ${p("path")}` : "") +
-        (s("glob") ? ` (${s("glob")})` : "")
+        `"${stringInput("pattern")}"` +
+        (stringInput("path") ? ` in ${pathInput("path")}` : "") +
+        (stringInput("glob") ? ` (${stringInput("glob")})` : "")
       );
     case "Glob":
-      return s("pattern") + (s("path") ? ` in ${p("path")}` : "");
+      return stringInput("pattern") + (stringInput("path") ? ` in ${pathInput("path")}` : "");
     case "Agent":
     case "Task":
-      return s("description") || firstLine(s("prompt"));
+      return stringInput("description") || firstLine(stringInput("prompt"));
     case "Skill":
-      return [s("skill"), s("args")].filter(Boolean).join(" ");
+      return [stringInput("skill"), stringInput("args")].filter(Boolean).join(" ");
     case "WebSearch":
-      return s("query");
+      return stringInput("query");
     case "WebFetch":
-      return s("url");
+      return stringInput("url");
     case "TodoWrite":
       return `${Array.isArray(input.todos) ? input.todos.length : 0} todos`;
     case "ToolSearch":
-      return s("query");
+      return stringInput("query");
     default:
       return firstStringValue(input, cwd);
   }

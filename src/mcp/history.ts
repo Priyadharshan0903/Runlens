@@ -3,7 +3,7 @@ import type { Event } from "../core/events.js";
 import { buildTurns } from "../core/tree.js";
 import type { SessionSummary, Turn } from "../core/types.js";
 import type { SessionFile } from "../sources/types.js";
-import { HistoryPagination } from "./pagination.js";
+import { HistoryPagination, type HistoryScan } from "./pagination.js";
 import {
   matchExcerpt,
   projectionOptions,
@@ -45,6 +45,12 @@ interface SummaryRequest extends PageRequest {
   query?: string;
 }
 
+interface ResolvedHistorySession {
+  session: SessionSummary;
+  file: SessionFile;
+  project: string;
+}
+
 /** A separate projection: viewer search is deliberately broader and must not feed MCP. */
 export class HistoryService {
   private readonly pagination = new HistoryPagination();
@@ -77,9 +83,15 @@ export class HistoryService {
   private async scoped(project: string | undefined, signal?: AbortSignal) {
     signal?.throwIfAborted();
     const directory = requestedScope(this.policy, project);
+    const listing = await this.loadListing(signal);
+    return scopeListing(listing, directory);
+  }
+
+  private async loadListing(signal?: AbortSignal): Promise<Listing> {
+    signal?.throwIfAborted();
     const listing = await this.list(signal);
     signal?.throwIfAborted();
-    return scopeListing(listing, directory);
+    return listing;
   }
 
   async search(query: string, request: SearchRequest = {}, signal?: AbortSignal) {
@@ -122,67 +134,67 @@ export class HistoryService {
     );
   }
 
-  async summary(id: string, request: SummaryRequest = {}, signal?: AbortSignal) {
-    if (!/^[\w-]{1,160}$/.test(id))
-      throw new HistoryError("invalid_session", "Use a session ID returned by search_sessions.");
-    const query = request.query === undefined ? undefined : normalizeQuery(request.query);
-    const { offset, limit } = pageRequest(request, 10, 50);
-    const projection = projectionOptions(request);
-    if (projection.fields.has("match_excerpt") && query === undefined)
-      throw new HistoryError("invalid_projection", "match_excerpt requires a summary query.");
+  async summary(sessionId: string, request: SummaryRequest = {}, signal?: AbortSignal) {
+    const options = summaryOptions(sessionId, request);
     const directory = requestedScope(this.policy, request.project);
-    const key = JSON.stringify(["summary", directory, id, query, projection.key]);
-    if (request.cursor) return this.pagination.resume(request.cursor, key, limit, signal);
+    const cursorKey = JSON.stringify([
+      "summary",
+      directory,
+      sessionId,
+      options.query,
+      options.projection.key,
+    ]);
+
+    if (request.cursor) {
+      return this.pagination.resume(request.cursor, cursorKey, options.limit, signal);
+    }
+
     // Session IDs are unique, so an omitted project looks through every startup grant in order.
     const scopes = request.project === undefined ? this.grants : [directory];
-    signal?.throwIfAborted();
-    const all = await this.list(signal);
-    signal?.throwIfAborted();
-    let found: { session: SessionSummary; entry: SessionFile; project: string } | undefined;
-    let scopedSessions = 0;
-    for (const scope of scopes) {
-      const { listing, project } = scopeListing(all, scope);
-      scopedSessions += listing.sessions.length;
-      const session = findSession(listing, id);
-      const entry = session && listing.files.get(session.id);
-      if (session && entry) {
-        found = { session, entry, project };
-        break;
-      }
-    }
-    if (!found)
-      throw new HistoryError(
-        "session_not_found",
-        findSession(all, id)
-          ? `This session exists but ran outside the granted projects. Ask the user to grant its folder at startup with --allow-project <path> or --all-projects, then reconnect.${scopedSessions ? "" : ` ${EMPTY_SCOPE}`}`
-          : !scopedSessions
-            ? `Session not found. ${EMPTY_SCOPE}`
-            : request.project === undefined
-              ? "Session not found in any granted project."
-              : "Session not found in the selected project.",
-      );
-    const { session, entry, project } = found;
-    const budget = new ScanBudget();
-    return this.pagination.page(
-      {
-        key,
-        base: {
-          ...provenance(session),
-          project: excerpt(
-            project === ALL_PROJECTS ? (session.project?.path ?? project) : project,
-            512,
-          ),
-        },
-        field: "turns",
-        budget,
-        iterator: summaryTurns(entry, budget, projection, query),
-        offset,
-        remainingOffset: offset,
-      },
-      limit,
-      signal,
-    );
+    const listing = await this.loadListing(signal);
+    const resolvedSession = findGrantedSession(listing, sessionId, scopes, request.project);
+
+    const scan = createSummaryScan(resolvedSession, options, cursorKey);
+    return this.pagination.page(scan, options.limit, signal);
   }
+}
+
+function summaryOptions(sessionId: string, request: SummaryRequest) {
+  if (!/^[\w-]{1,160}$/.test(sessionId)) {
+    throw new HistoryError("invalid_session", "Use a session ID returned by search_sessions.");
+  }
+
+  const query = request.query === undefined ? undefined : normalizeQuery(request.query);
+  const { offset, limit } = pageRequest(request, 10, 50);
+  const projection = projectionOptions(request);
+
+  if (projection.fields.has("match_excerpt") && query === undefined) {
+    throw new HistoryError("invalid_projection", "match_excerpt requires a summary query.");
+  }
+
+  return { query, offset, limit, projection };
+}
+
+function createSummaryScan(
+  { session, file, project }: ResolvedHistorySession,
+  { query, offset, projection }: ReturnType<typeof summaryOptions>,
+  cursorKey: string,
+): HistoryScan {
+  const budget = new ScanBudget();
+  const projectPath = project === ALL_PROJECTS ? (session.project?.path ?? project) : project;
+
+  return {
+    key: cursorKey,
+    base: {
+      ...provenance(session),
+      project: excerpt(projectPath, 512),
+    },
+    field: "turns",
+    budget,
+    iterator: summaryTurns(file, budget, projection, query),
+    offset,
+    remainingOffset: offset,
+  };
 }
 
 /** Accept the ID a client displays too: Codex shows `<uuid>`, Runlens lists `codex--<uuid>`. */
@@ -191,6 +203,50 @@ function findSession(listing: Listing, id: string) {
     listing.sessions.find((session) => session.id === id) ??
     listing.sessions.find((session) => session.id === `${session.source.id}--${id}`)
   );
+}
+
+function findGrantedSession(
+  allSessions: Listing,
+  sessionId: string,
+  scopes: string[],
+  requestedProject: string | undefined,
+): ResolvedHistorySession {
+  let scopedSessionCount = 0;
+
+  for (const scope of scopes) {
+    const { listing, project } = scopeListing(allSessions, scope);
+    scopedSessionCount += listing.sessions.length;
+
+    const session = findSession(listing, sessionId);
+    if (!session) {
+      continue;
+    }
+
+    const file = listing.files.get(session.id);
+    if (file) {
+      return { session, file, project };
+    }
+  }
+
+  throw new HistoryError(
+    "session_not_found",
+    missingSessionMessage(allSessions, sessionId, scopedSessionCount, requestedProject),
+  );
+}
+
+function missingSessionMessage(
+  listing: Listing,
+  id: string,
+  scopedSessions: number,
+  project: string | undefined,
+): string {
+  if (findSession(listing, id)) {
+    const scopeWarning = scopedSessions ? "" : ` ${EMPTY_SCOPE}`;
+    return `This session exists but ran outside the granted projects. Ask the user to grant its folder at startup with --allow-project <path> or --all-projects, then reconnect.${scopeWarning}`;
+  }
+  if (!scopedSessions) return `Session not found. ${EMPTY_SCOPE}`;
+  if (project === undefined) return "Session not found in any granted project.";
+  return "Session not found in the selected project.";
 }
 
 function normalizeQuery(query: string) {
@@ -250,55 +306,9 @@ async function* searchSessions(
     budget.signal.throwIfAborted();
     const entry = listing.files.get(session.id);
     if (!entry) continue;
-    let match: Record<string, unknown> | undefined;
-    if (includeTurns) {
-      for await (const record of recordedTurns(entry, budget)) {
-        if (record.kind === "pause") {
-          yield record;
-          continue;
-        }
-        const message = matchingMessage(record.turn, query);
-        if (!message) continue;
-        match = {
-          ...(!projection.explicitFields
-            ? { excerpt: matchExcerpt(message.text, query, projection.maxSnippetChars) }
-            : {}),
-          origin: record.origin,
-          at: safeDate(message.at),
-          matching_turn: {
-            ...summarizeTurn(record.turn, projection),
-            ...(projection.fields.has("match_excerpt")
-              ? { match_excerpt: matchExcerpt(message.text, query, projection.maxSnippetChars) }
-              : {}),
-          },
-        };
-        break;
-      }
-    } else
-      for await (const file of projectedFiles(entry, budget)) {
-        if (file.kind === "pause") {
-          yield file;
-          continue;
-        }
-        for await (const event of file.events) {
-          if ("kind" in event) {
-            yield event;
-            continue;
-          }
-          // Match the same masked projection that can be returned. No secret oracle.
-          if (event.type !== "prompt" && event.type !== "text" && event.type !== "interjection")
-            continue;
-          const position = event.text.toLowerCase().indexOf(query);
-          if (position < 0) continue;
-          match = {
-            excerpt: matchExcerpt(event.text, query, projection.maxSnippetChars),
-            origin: file.source,
-            at: safeDate(event.at),
-          };
-          break;
-        }
-        if (match) break;
-      }
+    const match = includeTurns
+      ? yield* findMatchingTurn(entry, query, budget, projection)
+      : yield* findMatchingText(entry, query, budget, projection);
     budget.progress.sessions_completed++;
     if (match)
       yield {
@@ -316,19 +326,79 @@ async function* searchSessions(
   }
 }
 
+/** Return the first matching turn while forwarding scan pauses to the page iterator. */
+async function* findMatchingTurn(
+  entry: SessionFile,
+  query: string,
+  budget: ScanBudget,
+  projection: ProjectionOptions,
+): AsyncGenerator<ScanPause, Record<string, unknown> | undefined> {
+  for await (const record of recordedTurns(entry, budget)) {
+    if (record.kind === "pause") {
+      yield record;
+      continue;
+    }
+    const message = matchingMessage(record.turn, query);
+    if (!message) continue;
+
+    const excerpt = matchExcerpt(message.text, query, projection.maxSnippetChars);
+    return {
+      ...(!projection.explicitFields ? { excerpt } : {}),
+      origin: record.origin,
+      at: safeDate(message.at),
+      matching_turn: {
+        ...summarizeTurn(record.turn, projection),
+        ...(projection.fields.has("match_excerpt") ? { match_excerpt: excerpt } : {}),
+      },
+    };
+  }
+  return undefined;
+}
+
+/** Match the same masked messages that can be returned, never raw tool content. */
+async function* findMatchingText(
+  entry: SessionFile,
+  query: string,
+  budget: ScanBudget,
+  projection: ProjectionOptions,
+): AsyncGenerator<ScanPause, Record<string, unknown> | undefined> {
+  for await (const file of projectedFiles(entry, budget)) {
+    if (file.kind === "pause") {
+      yield file;
+      continue;
+    }
+    for await (const event of file.events) {
+      if ("kind" in event) {
+        yield event;
+        continue;
+      }
+      if (event.type !== "prompt" && event.type !== "text" && event.type !== "interjection")
+        continue;
+      if (!event.text.toLowerCase().includes(query)) continue;
+
+      return {
+        excerpt: matchExcerpt(event.text, query, projection.maxSnippetChars),
+        origin: file.source,
+        at: safeDate(event.at),
+      };
+    }
+  }
+  return undefined;
+}
+
 /** Only fields originating in projected messages participate, never tool metadata or outputs. */
 function matchingMessage(turn: Turn, query: string) {
-  const messages = [
-    { text: turn.prompt, at: turn.at },
-    ...turn.steps.flatMap((step) =>
-      step.kind === "tool"
-        ? [{ text: step.why ?? "", at: step.at }]
-        : step.from === "agent" || step.from === "user"
-          ? [{ text: step.text, at: step.at }]
-          : [],
-    ),
-    { text: turn.final ?? "", at: turn.at },
-  ];
+  const messages = [{ text: turn.prompt, at: turn.at }];
+  for (const step of turn.steps) {
+    if (step.kind === "tool") {
+      messages.push({ text: step.why ?? "", at: step.at });
+      continue;
+    }
+    if (step.from === "agent" || step.from === "user") {
+      messages.push({ text: step.text, at: step.at });
+    }
+  }
+  messages.push({ text: turn.final ?? "", at: turn.at });
   return messages.find((message) => message.text.toLowerCase().includes(query));
 }
 

@@ -198,6 +198,24 @@ describe("MCP safety contract", () => {
     );
   });
 
+  it("resumes a summary without rediscovering sessions", async () => {
+    const { list } = fixture();
+    const discoverSessions = vi.fn(list);
+    const service = track(new HistoryService(discoverSessions, { project: "/work/demo" }));
+
+    const first = await service.summary("earlier-claude", { limit: 1 });
+    expect(first.next_cursor).toEqual(expect.any(String));
+
+    const second = await service.summary("earlier-claude", {
+      cursor: first.next_cursor!,
+      limit: 1,
+    });
+
+    expect(second.turns).toHaveLength(1);
+    expect(second.next_offset).not.toBe(first.next_offset);
+    expect(discoverSessions).toHaveBeenCalledTimes(1);
+  });
+
   it("matches grants and recorded folders by on-disk identity, not spelling", async () => {
     const real = mkdtempSync(join(tmpdir(), "runlens-Identity-"));
     const link = `${real}-link`;

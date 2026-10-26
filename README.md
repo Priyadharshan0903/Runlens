@@ -161,7 +161,8 @@ npm run check
 
 The check covers formatting, types, server-free tests, and the production build.
 For setup, code layout, and state conventions, read the [development guide](docs/development.md)
-and [AGENTS.md](AGENTS.md). New readers follow the [adapter guide](docs/source-adapters.md).
+and [AGENTS.md](AGENTS.md). The [transcript reading guide](docs/development.md#reading-the-transcript-pipeline)
+identifies the main parsing and history functions. New readers follow the [adapter guide](docs/source-adapters.md).
 
 [Usage](docs/usage.md) · [Codex support](docs/codex-sessions.md) ·
 [Release workflow](docs/releases.md) · [Changelog](CHANGELOG.md)

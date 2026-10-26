@@ -69,11 +69,10 @@ function describeCommand(command: string | undefined): ToolAction {
   if (program === "sed") {
     // sed supports writes and executable expressions; recognize only a simple print range.
     if (args[0] === "-n") args.shift();
-    if (args.length && /^(?:(?:\d+|\$)(?:,(?:\d+|\$))?)?p$/.test(args[0])) {
-      if (args.slice(1).every((arg) => !arg.startsWith("-"))) {
-        return { ...action, kind: "look", verb: "Read", icon: "file" };
-      }
-    }
+    const isPrintRange = args.length > 0 && /^(?:(?:\d+|\$)(?:,(?:\d+|\$))?)?p$/.test(args[0]);
+    const hasOnlyFileArguments = args.slice(1).every((arg) => !arg.startsWith("-"));
+    if (isPrintRange && hasOnlyFileArguments)
+      return { ...action, kind: "look", verb: "Read", icon: "file" };
   }
   return action;
 }
@@ -87,23 +86,28 @@ function inspectionWords(command: string): string[] | undefined {
   let started = false;
   for (const character of command) {
     if (quote) {
-      if (character === quote) quote = "";
-      else {
-        if (quote === '"' && /[$`\\]/.test(character)) return;
-        word += character;
+      if (character === quote) {
+        quote = "";
+        continue;
       }
-    } else if (character === "'" || character === '"') {
+      if (quote === '"' && /[$`\\]/.test(character)) return;
+      word += character;
+      continue;
+    }
+    if (character === "'" || character === '"') {
       quote = character;
       started = true;
-    } else if (/\s/.test(character)) {
+      continue;
+    }
+    if (/\s/.test(character)) {
       if (started) words.push(word);
       word = "";
       started = false;
-    } else {
-      if (/[\\$`;&|<>(){}#]/.test(character)) return;
-      word += character;
-      started = true;
+      continue;
     }
+    if (/[\\$`;&|<>(){}#]/.test(character)) return;
+    word += character;
+    started = true;
   }
   if (quote) return;
   if (started) words.push(word);
@@ -132,33 +136,7 @@ export function completedTool(item: Record<string, unknown>, cwd?: string) {
     for (const [file, raw] of Object.entries(changes)) {
       if (!raw || typeof raw !== "object") continue;
       const change = raw as Record<string, unknown>;
-      const content = typeof change.content === "string" ? change.content : "";
-      const diff = typeof change.unified_diff === "string" ? change.unified_diff : "";
-      const lines = content ? content.replace(/\n$/, "").split("\n").length : 0;
-      const preview: FileEffect["preview"] = diff
-        ? { kind: "diff", text: diff }
-        : typeof change.content === "string"
-          ? {
-              kind:
-                change.type === "add" ? "added" : change.type === "delete" ? "removed" : "content",
-              text: content,
-            }
-          : undefined;
-      files.push({
-        path: relativePath(file, cwd),
-        operation: "change",
-        added:
-          change.type === "add"
-            ? lines
-            : diff.split("\n").filter((line) => line.startsWith("+") && !line.startsWith("+++"))
-                .length,
-        removed:
-          change.type === "delete"
-            ? lines
-            : diff.split("\n").filter((line) => line.startsWith("-") && !line.startsWith("---"))
-                .length,
-        preview,
-      });
+      files.push(completedFileEffect(file, change, cwd));
       if (typeof change.move_path === "string")
         files.push({
           path: relativePath(change.move_path, cwd),
@@ -191,6 +169,47 @@ export function completedTool(item: Record<string, unknown>, cwd?: string) {
     };
   }
   return undefined;
+}
+
+function completedFileEffect(
+  file: string,
+  change: Record<string, unknown>,
+  cwd?: string,
+): FileEffect {
+  const content = typeof change.content === "string" ? change.content : "";
+  const diff = typeof change.unified_diff === "string" ? change.unified_diff : "";
+  const contentLines = content ? content.replace(/\n$/, "").split("\n").length : 0;
+  let added = 0;
+  let removed = 0;
+  for (const line of diff.split("\n")) {
+    if (line.startsWith("+") && !line.startsWith("+++")) added++;
+    if (line.startsWith("-") && !line.startsWith("---")) removed++;
+  }
+
+  return {
+    path: relativePath(file, cwd),
+    operation: "change",
+    added: change.type === "add" ? contentLines : added,
+    removed: change.type === "delete" ? contentLines : removed,
+    preview: completedFilePreview(change, diff),
+  };
+}
+
+function completedFilePreview(
+  change: Record<string, unknown>,
+  diff: string,
+): FileEffect["preview"] {
+  if (diff) return { kind: "diff", text: diff };
+  if (typeof change.content !== "string") return undefined;
+
+  switch (change.type) {
+    case "add":
+      return { kind: "added", text: change.content };
+    case "delete":
+      return { kind: "removed", text: change.content };
+    default:
+      return { kind: "content", text: change.content };
+  }
 }
 
 /** Display a recorded shell script directly; keep argument boundaries for other invocations. */
@@ -242,18 +261,24 @@ function patchEffects(patch: string, cwd?: string): FileEffect[] {
       const path = relativePath(header[1], cwd);
       current = files.get(path) ?? { path, operation: "change", added: 0, removed: 0 };
       files.set(path, current);
-    } else if (line.startsWith("*** Move to: ")) {
+      continue;
+    }
+    if (line.startsWith("*** Move to: ")) {
       const path = relativePath(line.slice(13), cwd);
       if (!files.has(path)) files.set(path, { path, operation: "change", added: 0, removed: 0 });
-    } else if (line.startsWith("***")) {
-      current = undefined;
-    } else if (current) {
-      const lines = previews.get(current.path) ?? [];
-      lines.push(line);
-      previews.set(current.path, lines);
-      if (line.startsWith("+")) current.added++;
-      else if (line.startsWith("-")) current.removed++;
+      continue;
     }
+    if (line.startsWith("***")) {
+      current = undefined;
+      continue;
+    }
+    if (!current) continue;
+
+    const lines = previews.get(current.path) ?? [];
+    lines.push(line);
+    previews.set(current.path, lines);
+    if (line.startsWith("+")) current.added++;
+    if (line.startsWith("-")) current.removed++;
   }
   for (const [path, lines] of previews) {
     files.get(path)!.preview = { kind: "diff", text: lines.join("\n") };

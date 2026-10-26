@@ -28,6 +28,35 @@ reasoning remain absent rather than being estimated.
 
 See [Adding a source adapter](source-adapters.md) for the contract and extension steps.
 
+## Reading the transcript pipeline
+
+Start with the record router, then follow the handler for the record you are investigating:
+
+| File                          | Entry point and responsibilities                                                                                                                |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/sources/claude/parse.ts` | `parseRecords` routes records; `parseUser` and `parseAssistant` decode content; `parseUsage` and `mergeUsage` handle repeated usage snapshots.  |
+| `src/sources/codex/parse.ts`  | `CodexDecoder.decode` routes records to message, tool, metadata, and usage handlers. Decoder state stays with one transcript across scan pages. |
+| `src/sources/claude/tools.ts` | `describeTool` builds the common action; `describeFileEffect` and `addReplacementEffects` handle recorded file changes.                         |
+| `src/sources/codex/tools.ts`  | `describeTool` labels calls; `completedTool` decodes native operations; file helpers build counts and previews from recorded content.           |
+| `src/mcp/history.ts`          | `searchSessions` walks sessions; `findMatchingTurn` and `findMatchingText` find the first match and forward pauses to pagination.               |
+
+Use explicit branches for format-specific behavior. A `switch` works well when choosing by record
+or tool type; early returns and `continue` keep unsupported input and completed cases out of the
+main path. Give separate responsibilities names, and keep short decisions inline when extracting
+them would only add indirection. Prefer descriptive local names over abbreviations and nested
+ternaries. Fewer lines or fewer `if` statements alone do not make a refactor easier to read.
+
+`HistoryService.summary` coordinates request validation, cursor resumption, granted-session lookup,
+and page delivery. Read `summaryOptions` for validation, `findGrantedSession` for scope lookup and
+missing-session errors, and `createSummaryScan` for the transcript iterator and page metadata.
+`loadListing` checks cancellation before and after discovery for both search and summary requests.
+
+Preserve event order, duplicate suppression, pending calls, usage accounting, and scan pauses
+when changing these functions. Codex replaces a successful enclosing `exec` call with its recorded
+operations, but retains a failed enclosing call alongside those operations. Claude emits tool results
+before the combined prompt text from a mixed user record. The core, feature, Codex, and MCP tests
+cover these boundaries without reading personal history or starting a viewer.
+
 ## Code structure and state ownership
 
 The UI uses Preact and follows the same state model as React: store user choices and external

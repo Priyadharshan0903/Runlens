@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { listSessions } from "../src/core/discover.js";
 import { sessionNotFoundMessage } from "../src/core/session.js";
 import { parseRecords } from "../src/sources/claude/parse.js";
-import { summarizeTool } from "../src/sources/claude/tools.js";
+import { describeTool, summarizeTool } from "../src/sources/claude/tools.js";
 import { buildTurns } from "../src/core/tree.js";
 import type { ToolStep } from "../src/core/types.js";
 import {
@@ -30,6 +30,47 @@ describe("session folder diagnostics", () => {
 });
 
 describe("parseRecords", () => {
+  it("preserves mixed content order and ignores unsupported or malformed blocks", () => {
+    const { events } = parseRecords([
+      {
+        type: "user",
+        toolUseResult: { agentId: "child" },
+        message: {
+          content: [
+            null,
+            { type: "text", text: "Look at this" },
+            { type: "image" },
+            {
+              type: "tool_result",
+              tool_use_id: "read",
+              content: [null, { type: "text", text: "contents" }, { type: "image" }],
+            },
+            { type: "unknown", text: "hidden" },
+          ],
+        },
+      },
+      {
+        type: "assistant",
+        message: {
+          content: [
+            { type: "text", text: "  " },
+            { type: "thinking", thinking: " Check the image " },
+            { type: "text", text: " Here is what I found " },
+            { type: "tool_use", id: "next" },
+          ],
+        },
+      },
+    ]);
+    expect(events).toMatchObject([
+      { type: "tool_result", output: "contents\n[image]", agentId: "child" },
+      { type: "prompt", text: "Look at this\n[image]" },
+      { type: "thinking", text: "Check the image" },
+      { type: "text", text: "Here is what I found" },
+      { type: "tool_use", id: "next", name: "unknown" },
+    ]);
+    expect(events).toHaveLength(5);
+  });
+
   it("uses the recorded working directory even when the file starts with a tool call", () => {
     const { events } = parseRecords([
       call("early-read", "Read", { file_path: "/work/demo/src/a.ts" }),
@@ -276,6 +317,27 @@ describe("listSessions", () => {
 });
 
 describe("summarizeTool", () => {
+  it("keeps multi-edit counts and previews when some replacements are incomplete", () => {
+    const { action } = describeTool("MultiEdit", {
+      file_path: "/work/demo/a.ts",
+      edits: [
+        { old_string: "old", new_string: "new\nline" },
+        null,
+        { old_string: "removed only" },
+        { old_string: "", new_string: "added" },
+      ],
+    });
+    expect(action.files).toEqual([
+      {
+        path: "/work/demo/a.ts",
+        operation: "change",
+        added: 3,
+        removed: 2,
+        preview: { kind: "diff", text: "-old\n+new\n+line\n@@\n+added" },
+      },
+    ]);
+  });
+
   it("describes common tools in one line", () => {
     expect(summarizeTool("Bash", { command: "cd /work/demo && npm test\nnpm run lint" })).toBe(
       "npm test",

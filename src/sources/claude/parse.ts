@@ -32,81 +32,65 @@ export interface Transcript {
   info: TranscriptInfo;
 }
 
-type Rec = Record<string, unknown>;
+type TranscriptRecord = Record<string, unknown>;
 
 export async function readTranscript(file: string, cwd?: string): Promise<Transcript> {
-  const records: Rec[] = [];
+  const records: TranscriptRecord[] = [];
   for await (const record of streamRecords(file)) records.push(record);
   return parseRecords(records, cwd);
 }
 
-export function parseRecords(records: Rec[], cwd?: string): Transcript {
+export function parseRecords(records: TranscriptRecord[], cwd?: string): Transcript {
   const events: Event[] = [];
   const info: TranscriptInfo = {};
   // A resumed file can begin with tool records before its first recorded working directory.
-  const callCwd = cwd ?? str(records.find((record) => str(record.cwd))?.cwd);
+  const callCwd = cwd ?? optionalString(records.find((record) => optionalString(record.cwd))?.cwd);
   let customTitle: string | undefined;
   const usage = new Map<string, UsageRecord>();
   let anonymous = 0;
 
-  for (const r of records) {
-    const at = str(r.timestamp);
+  for (const record of records) {
+    const at = optionalString(record.timestamp);
     if (at) {
       info.startedAt ??= at;
       info.endedAt = at;
     }
-    if (!info.cwd && str(r.cwd)) info.cwd = str(r.cwd);
-    if (str(r.gitBranch) && r.gitBranch !== "HEAD") info.branch = str(r.gitBranch);
+    if (!info.cwd && optionalString(record.cwd)) info.cwd = optionalString(record.cwd);
+    if (optionalString(record.gitBranch) && record.gitBranch !== "HEAD")
+      info.branch = optionalString(record.gitBranch);
 
-    switch (r.type) {
+    switch (record.type) {
       case "ai-title":
-        info.title = str(r.aiTitle) ?? info.title;
+        info.title = optionalString(record.aiTitle) ?? info.title;
         break;
       case "custom-title":
-        customTitle = str(r.customTitle) ?? customTitle;
+        customTitle = optionalString(record.customTitle) ?? customTitle;
         break;
       case "summary":
-        info.title ??= str(r.summary);
+        info.title ??= optionalString(record.summary);
         break;
       case "cost-state":
-        info.costUSD = num(r.totalCostUSD) ?? info.costUSD;
-        info.linesAdded = num(r.totalLinesAdded) ?? info.linesAdded;
-        info.linesRemoved = num(r.totalLinesRemoved) ?? info.linesRemoved;
+        info.costUSD = finiteNumber(record.totalCostUSD) ?? info.costUSD;
+        info.linesAdded = finiteNumber(record.totalLinesAdded) ?? info.linesAdded;
+        info.linesRemoved = finiteNumber(record.totalLinesRemoved) ?? info.linesRemoved;
         break;
       case "user":
-        parseUser(r, at ?? "", events);
+        parseUser(record, at ?? "", events);
         break;
-      case "assistant":
-        parseAssistant(r, at ?? "", events, callCwd);
-        if (isRec(r.message) && isRec(r.message.usage)) {
-          const m = r.message;
-          const u = m.usage as Rec;
-          const id = str(m.id) ?? str(r.uuid);
-          const key = id ?? `anonymous-${anonymous++}`;
-          const next: UsageRecord = {
-            id,
-            model: str(m.model) ?? "Unknown model",
-            usage: {
-              input: Math.max(0, num(u.input_tokens) ?? 0),
-              output: Math.max(0, num(u.output_tokens) ?? 0),
-              cacheRead: Math.max(0, num(u.cache_read_input_tokens) ?? 0),
-              cacheWrite: Math.max(0, num(u.cache_creation_input_tokens) ?? 0),
-            },
-          };
-          const previous = usage.get(key);
-          // Content blocks and streaming snapshots can repeat a message's cumulative usage.
-          if (previous)
-            for (const field of Object.keys(next.usage) as (keyof TokenUsage)[]) {
-              next.usage[field] = Math.max(previous.usage[field], next.usage[field]);
-            }
-          usage.set(key, next);
+      case "assistant": {
+        parseAssistant(record, at ?? "", events, callCwd);
+        const nextUsage = parseUsage(record);
+        if (nextUsage) {
+          const key = nextUsage.id ?? `anonymous-${anonymous++}`;
+          usage.set(key, mergeUsage(usage.get(key), nextUsage));
         }
         break;
+      }
       case "attachment":
-        parseAttachment(r, at ?? "", events);
+        parseAttachment(record, at ?? "", events);
         break;
       case "system":
-        if (r.subtype === "compact_boundary") {
+        if (record.subtype === "compact_boundary") {
           events.push({ type: "compaction", text: "Context compacted", at: at ?? "" });
         }
         break;
@@ -118,9 +102,34 @@ export function parseRecords(records: Rec[], cwd?: string): Transcript {
   return { events, info };
 }
 
-function parseUser(r: Rec, at: string, events: Event[]) {
-  if (r.isMeta || r.isCompactSummary) return;
-  const content = isRec(r.message) ? r.message.content : undefined;
+function parseUsage(record: TranscriptRecord): UsageRecord | undefined {
+  const message = record.message;
+  if (!isRecord(message) || !isRecord(message.usage)) return undefined;
+  const usage = message.usage;
+  return {
+    id: optionalString(message.id) ?? optionalString(record.uuid),
+    model: optionalString(message.model) ?? "Unknown model",
+    usage: {
+      input: Math.max(0, finiteNumber(usage.input_tokens) ?? 0),
+      output: Math.max(0, finiteNumber(usage.output_tokens) ?? 0),
+      cacheRead: Math.max(0, finiteNumber(usage.cache_read_input_tokens) ?? 0),
+      cacheWrite: Math.max(0, finiteNumber(usage.cache_creation_input_tokens) ?? 0),
+    },
+  };
+}
+
+/** Content blocks and streaming snapshots can repeat a message's cumulative usage. */
+function mergeUsage(previous: UsageRecord | undefined, next: UsageRecord): UsageRecord {
+  if (!previous) return next;
+  for (const field of Object.keys(next.usage) as (keyof TokenUsage)[]) {
+    next.usage[field] = Math.max(previous.usage[field], next.usage[field]);
+  }
+  return next;
+}
+
+function parseUser(record: TranscriptRecord, at: string, events: Event[]) {
+  if (record.isMeta || record.isCompactSummary) return;
+  const content = isRecord(record.message) ? record.message.content : undefined;
 
   if (typeof content === "string") {
     pushUserText(content, at, events);
@@ -130,21 +139,26 @@ function parseUser(r: Rec, at: string, events: Event[]) {
 
   const texts: string[] = [];
   for (const block of content) {
-    if (!isRec(block)) continue;
-    if (block.type === "tool_result") {
-      const meta = isRec(r.toolUseResult) ? r.toolUseResult : undefined;
-      events.push({
-        type: "tool_result",
-        toolUseId: str(block.tool_use_id) ?? "",
-        isError: block.is_error === true,
-        output: contentToText(block.content),
-        at,
-        agentId: meta ? str(meta.agentId) : undefined,
-      });
-    } else if (block.type === "text" && typeof block.text === "string") {
-      texts.push(block.text);
-    } else if (block.type === "image") {
-      texts.push("[image]");
+    if (!isRecord(block)) continue;
+    switch (block.type) {
+      case "tool_result": {
+        const meta = isRecord(record.toolUseResult) ? record.toolUseResult : undefined;
+        events.push({
+          type: "tool_result",
+          toolUseId: optionalString(block.tool_use_id) ?? "",
+          isError: block.is_error === true,
+          output: contentToText(block.content),
+          at,
+          agentId: meta ? optionalString(meta.agentId) : undefined,
+        });
+        break;
+      }
+      case "text":
+        if (typeof block.text === "string") texts.push(block.text);
+        break;
+      case "image":
+        texts.push("[image]");
+        break;
     }
   }
   if (texts.length) pushUserText(texts.join("\n"), at, events);
@@ -182,36 +196,42 @@ function cleanPastes(text: string): string {
     .trim();
 }
 
-function parseAssistant(r: Rec, at: string, events: Event[], cwd?: string) {
-  const content = isRec(r.message) ? r.message.content : undefined;
+function parseAssistant(record: TranscriptRecord, at: string, events: Event[], cwd?: string) {
+  const content = isRecord(record.message) ? record.message.content : undefined;
   if (!Array.isArray(content)) return;
   for (const block of content) {
-    if (!isRec(block)) continue;
-    if (block.type === "text" && typeof block.text === "string" && block.text.trim()) {
-      events.push({ type: "text", text: block.text.trim(), at });
-    } else if (
-      block.type === "thinking" &&
-      typeof block.thinking === "string" &&
-      block.thinking.trim()
-    ) {
-      events.push({ type: "thinking", text: block.thinking.trim(), at });
-    } else if (block.type === "tool_use") {
-      events.push({
-        type: "tool_use",
-        id: str(block.id) ?? "",
-        name: str(block.name) ?? "unknown",
-        input: block.input,
-        ...describeTool(str(block.name) ?? "unknown", block.input, cwd),
-        at,
-      });
+    if (!isRecord(block)) continue;
+    switch (block.type) {
+      case "text": {
+        const text = optionalString(block.text)?.trim();
+        if (text) events.push({ type: "text", text, at });
+        break;
+      }
+      case "thinking": {
+        const text = optionalString(block.thinking)?.trim();
+        if (text) events.push({ type: "thinking", text, at });
+        break;
+      }
+      case "tool_use": {
+        const name = optionalString(block.name) ?? "unknown";
+        events.push({
+          type: "tool_use",
+          id: optionalString(block.id) ?? "",
+          name,
+          input: block.input,
+          ...describeTool(name, block.input, cwd),
+          at,
+        });
+        break;
+      }
     }
   }
 }
 
-function parseAttachment(r: Rec, at: string, events: Event[]) {
-  const a = isRec(r.attachment) ? r.attachment : undefined;
-  if (!a || a.type !== "queued_command") return;
-  const prompt = str(a.prompt)?.trim();
+function parseAttachment(record: TranscriptRecord, at: string, events: Event[]) {
+  const attachment = isRecord(record.attachment) ? record.attachment : undefined;
+  if (!attachment || attachment.type !== "queued_command") return;
+  const prompt = optionalString(attachment.prompt)?.trim();
   // Background-agent completions also arrive this way; only keep what the person typed.
   if (prompt && !prompt.startsWith("<task-notification>")) {
     events.push({ type: "interjection", text: prompt, at });
@@ -222,32 +242,29 @@ function contentToText(content: unknown): string {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
   return content
-    .map((b) =>
-      isRec(b)
-        ? b.type === "text"
-          ? (str(b.text) ?? "")
-          : b.type === "image"
-            ? "[image]"
-            : ""
-        : "",
-    )
+    .map((block) => {
+      if (!isRecord(block)) return "";
+      if (block.type === "text") return optionalString(block.text) ?? "";
+      if (block.type === "image") return "[image]";
+      return "";
+    })
     .filter(Boolean)
     .join("\n");
 }
 
 function tag(text: string, name: string): string | undefined {
-  const m = text.match(new RegExp(`<${name}>([\\s\\S]*?)</${name}>`));
-  return m?.[1]?.trim() || undefined;
+  const match = text.match(new RegExp(`<${name}>([\\s\\S]*?)</${name}>`));
+  return match?.[1]?.trim() || undefined;
 }
 
-function isRec(v: unknown): v is Rec {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
+function isRecord(value: unknown): value is TranscriptRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function str(v: unknown): string | undefined {
-  return typeof v === "string" ? v : undefined;
+function optionalString(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
 }
 
-function num(v: unknown): number | undefined {
-  return typeof v === "number" && Number.isFinite(v) ? v : undefined;
+function finiteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }

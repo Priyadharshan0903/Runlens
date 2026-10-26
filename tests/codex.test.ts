@@ -67,6 +67,44 @@ const result = (id: string, output: unknown) =>
   record("response_item", { type: "function_call_output", call_id: id, output });
 
 describe("Codex history", () => {
+  it("retains concrete operations and their failed enclosing exec result in order", () => {
+    const decoder = new CodexDecoder();
+    decoder.decode(call("wrapper", "functions.exec", { code: "run operations" }));
+    const operation = record("event_msg", {
+      type: "item_completed",
+      started_at_ms: Date.parse(at),
+      completed_at_ms: Date.parse(at) + 250,
+      item: { type: "CommandExecution", id: "native", command: "npm test", exit_code: 0 },
+    });
+    expect(decoder.decode(operation)).toEqual([]);
+    expect(decoder.decode(operation)).toEqual([]);
+    const events = decoder.decode(result("wrapper", "Error: later operation failed"));
+    expect(events).toMatchObject([
+      { type: "tool_use", id: "native", at },
+      { type: "tool_result", toolUseId: "native", isError: false },
+      { type: "tool_use", id: "wrapper" },
+      { type: "tool_result", toolUseId: "wrapper", isError: true },
+    ]);
+    expect(events).toHaveLength(4);
+    expect(events[1].at).toBe("2026-10-22T10:00:00.250Z");
+    expect(decoder.finish()).toEqual([]);
+  });
+
+  it("flushes pending exec calls once when a prompt or compaction arrives", () => {
+    const decoder = new CodexDecoder();
+    decoder.decode(call("first", "exec", {}));
+    expect(decoder.decode(message("user", "continue"))).toMatchObject([
+      { type: "tool_use", id: "first" },
+      { type: "prompt", text: "continue" },
+    ]);
+    decoder.decode(call("second", "exec", {}));
+    expect(decoder.decode(record("compacted", {}))).toMatchObject([
+      { type: "tool_use", id: "second" },
+      { type: "compaction" },
+    ]);
+    expect(decoder.finish()).toEqual([]);
+  });
+
   it("discovers active, default, and archived histories, deduplicating physical directories", () => {
     const { root } = fixture();
     expect(defaultRoots({}, root)).toEqual([]);
