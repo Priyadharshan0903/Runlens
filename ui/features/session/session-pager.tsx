@@ -13,14 +13,14 @@ export function SessionPager({ neighbors, annotations }: SessionPagerProps) {
   if (!neighbors) return null;
 
   return (
-    <nav class="session-pager" aria-label="Chats in this project">
+    <nav class="session-pager" aria-label="Chats">
       <ChatLink session={neighbors.previous} direction="previous" annotations={annotations} />
       <span
         class="session-position"
         role="status"
         aria-atomic="true"
-        aria-label={`Chat ${neighbors.position} of ${neighbors.total} in this project`}
-        title="Chats in this project, most recently updated first"
+        aria-label={`Chat ${neighbors.position} of ${neighbors.total}`}
+        title="All chats, in sidebar order"
       >
         {neighbors.position} of {neighbors.total}
       </span>
@@ -38,7 +38,7 @@ interface ChatLinkProps {
 function ChatLink({ session, direction, annotations }: ChatLinkProps) {
   const label = direction === "previous" ? "Previous" : "Next";
   const title = session ? annotations[session.id]?.title || session.title : undefined;
-  const description = title ? `${label} chat: ${title}` : `No ${direction} chat in this project`;
+  const description = title ? `${label} chat: ${title}` : `No ${direction} chat`;
 
   return (
     <a

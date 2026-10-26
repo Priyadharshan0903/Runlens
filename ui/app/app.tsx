@@ -71,8 +71,8 @@ function App() {
   );
   const selectedSummary = sessions.find((session) => session.id === selectedId);
   const neighbors = useMemo(
-    () => sessionNeighbors(scopedSessions, selectedId),
-    [scopedSessions, selectedId],
+    () => sessionNeighbors(scopedSessions, selectedId, preferences.sidebarGrouping),
+    [scopedSessions, selectedId, preferences.sidebarGrouping],
   );
   const navigationOpen = layoutMode === "navigation";
   const focusMode = layoutMode === "focus";

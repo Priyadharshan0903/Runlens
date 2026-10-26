@@ -100,7 +100,9 @@ without server instructions can still present it:
   change/failure detail, or `fields` for only the facts needed. Use `session_summary`
   only for additional context, with its returned `session_id` and the same project. An optional
   summary `query` selects matching turns directly. Skip history calls when the answer is already
-  available in the current context.
+  available in the current context. Use `list_sessions` to browse recent sessions by date, agent or
+  title without reading transcripts, `list_projects` to see the readable projects, and
+  `file_history` to find earlier sessions that changed a file before editing it.
 - Omit `project` for the configured startup scope. It does not follow the client's current folder.
   Confirm it matches the task. Other paths require an existing explicit startup grant; a tool call
   cannot approve access. If the scope is wrong or denied, ask the user to reconfigure and reconnect.
@@ -187,12 +189,33 @@ sooner, so follow cursors and check `partial` and `scan_progress`.
 
 ## Tools and limits
 
-| Tool              | Arguments                                                                                           | Returned data                                                                                                                 |
-| ----------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `search_sessions` | `query`, optional `include_turns`, `project`, `cursor`, `offset`, `limit`, and output options below | One match per session, with a masked excerpt and provenance. `include_turns: true` adds a `matching_turn`, terse by default.  |
-| `session_summary` | `id`, optional `query`, `project`, `cursor`, `offset`, `limit`, and output options below            | Recorded turns, terse by default. A query selects matching turns and adds `match_excerpt` unless field selection excludes it. |
+| Tool              | Arguments                                                                                            | Returned data                                                                                                                 |
+| ----------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `search_sessions` | `query`, optional `include_turns`, `project`, `cursor`, `offset`, `limit`, and output options below  | One match per session, with a masked excerpt and provenance. `include_turns: true` adds a `matching_turn`, terse by default.  |
+| `session_summary` | `id`, optional `query`, `project`, `cursor`, `offset`, `limit`, and output options below             | Recorded turns, terse by default. A query selects matching turns and adds `match_excerpt` unless field selection excludes it. |
+| `list_sessions`   | optional `agent`, `title`, `updated_after`, `updated_before`, `project`, `cursor`, `offset`, `limit` | Session metadata newest first: ID, agent, title, start/update dates, subagent count, and project with `--all-projects`.       |
 
-Both tools accept these output options:
+`list_sessions` reads only the session listing, never transcript content, so it is the cheapest way
+to browse recent work or find an ID for `session_summary`. It defaults to 10 sessions and accepts
+1–25. `agent` is `claude` or `codex`; `title` is a literal, case-insensitive phrase in the masked
+title; `updated_after` (inclusive) and `updated_before` (exclusive) take ISO 8601 dates or date-times
+and compare against the transcript's last modification time. It takes no output options.
+
+`list_projects` also reads no transcript content. With `--all-projects` it groups sessions by the
+viewer's inferred project folder; a `null` path is home or an unknown folder and cannot be passed as
+`project`. Otherwise it reports only the startup grants, so it never reveals other recorded projects.
+It defaults to 10 projects and accepts 1–25.
+
+`file_history` matches an exact path, or a relative fragment made of whole trailing segments:
+`src/server.ts` matches `/repo/src/server.ts` but not `/repo/src/myserver.ts`, and an absolute path
+must match exactly. Relative recorded paths, such as Codex patch paths, resolve against the
+session folder for absolute queries. Only successful recorded edit, write and patch operations count; reads, failed
+calls and files changed through shell commands are not detected. Each session reports
+`matching_turns`, up to five `turns` (origin, date, terse `gist`, and up to four matching `files`
+with `edits`, `added` and `removed`), and `omitted_turns`. Line counts are recorded operation sizes,
+not a Git diff. Search paging defaults (3, up to 5) and the scan budget apply.
+
+`search_sessions` and `session_summary` accept these output options:
 
 | Option              | Behavior                                                                                                                                                                                                           |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

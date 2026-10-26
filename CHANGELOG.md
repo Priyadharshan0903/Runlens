@@ -1,5 +1,25 @@
 # Changelog
 
+### 2026-10-25 — Session pager across projects and days
+
+- Previous/Next in the top bar no longer stop at the current project. They follow the sidebar's
+  grouping: by project, they finish one project newest first and continue into the next; by date,
+  they walk every chat newest first across days. The count is now your position among all chats.
+  The agent filter still applies.
+
+### 2026-10-24 — MCP discovery tools
+
+- Add a read-only `list_sessions` MCP tool that returns session metadata newest first (ID, agent,
+  masked title, start/update dates, subagent count, and project with `--all-projects`) without
+  opening transcripts. Optional `agent`, `title`, `updated_after` and `updated_before` filters
+  narrow the list; it pages with the same cursor/offset contract, 10 by default and up to 25.
+- Add `list_projects`: readable projects, most recently active first, with per-agent session counts
+  and first/last activity. It lists startup grants only, or every recorded project with
+  `--all-projects`, and reads no transcript content.
+- Add `file_history`: sessions whose successful recorded edits, writes or patches changed a path,
+  matched exactly or by whole trailing segments, with up to five matching turns per session and
+  their gists and edit/line counts.
+
 ### 2026-10-24 — GitHub Packages mirror
 
 - The publish workflow now also publishes each release to GitHub Packages as

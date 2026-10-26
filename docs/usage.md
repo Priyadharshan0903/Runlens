@@ -103,13 +103,15 @@ the sidebar. Search requests pause while viewing a session, where the sidebar re
 ## Inspect a session
 
 Use **Previous** and **Next** on the right of the top bar to move between chats without returning
-to the library. They follow the current project's most recently updated order and respect the chosen
-agent. The count shows your position in that project; hovering a control shows the destination's
+to the library. They follow the sidebar's current order and respect the chosen agent: grouped by
+project, they walk each project newest first and then continue into the next project; grouped by
+date, they walk every chat newest first across days. The count shows your position among all chats;
+hovering a control shows the destination's
 title, including any name you gave it. The controls stay visible while you scroll, load a chat, or
 encounter a loading error, and disable at the first/last chat. Tab to a link and press Enter to open
 it; browser Back/Forward still follow your navigation history. On narrow screens the controls use
-arrow icons with the same accessible names. The sequence includes the full project, beyond the
-sidebar's five rows and the library's 40-row pages.
+arrow icons with the same accessible names. The sequence includes every chat, beyond the sidebar's
+collapsed groups and rows and the library's 40-row pages.
 
 | View         | What it shows                                                                                                                                                           |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

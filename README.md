@@ -38,7 +38,7 @@ Runlens discovers Claude history under `~/.claude/projects`, `CLAUDE_CONFIG_DIR`
 ## What you can inspect
 
 - **Conversations and timelines:** human questions beside agent answers, with expandable tool calls.
-  Move between chats in the same project with Previous/Next in the top bar.
+  Move between chats with Previous/Next in the top bar, following the sidebar's project or date order.
 - **File changes and failures:** recorded patches, command output, and failed calls in one session.
 - **Subagents:** follow child runs and their tool activity.
 - **Search and organization:** search transcripts from the centered top bar, pick an agent, group by project or date, and filter the library.
@@ -73,8 +73,10 @@ Questions and suggestions are welcome in issues; code changes are welcome throug
 
 ## Let agents consult earlier work
 
-The source preview includes a read-only MCP server with `search_sessions` and `session_summary`
-for Claude Code and Codex history. Search can include a matching recorded gist and counts in one
+The source preview includes a read-only MCP server with `search_sessions`, `session_summary`,
+`list_sessions`, `list_projects` and `file_history` for Claude Code and Codex history. Listing
+browses sessions or projects without reading transcripts, and file history finds earlier sessions
+that changed a file. Search can include a matching recorded gist and counts in one
 call; summaries can filter for relevant turns. Responses default to compact excerpts. Use
 `detail: "full"` for question/answer and change/failure detail, `fields` for selected turn facts, or
 `max_snippet_chars` for shorter text. Connection instructions tell agents when earlier work may help.

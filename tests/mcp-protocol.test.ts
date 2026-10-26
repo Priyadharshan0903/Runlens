@@ -150,9 +150,17 @@ describe("Runlens MCP stdio", () => {
       expect(instructions).toContain("It stays fixed when the client changes folders");
       expect(instructions).toContain("search_sessions");
       expect(instructions).toContain("session_summary");
+      expect(instructions).toContain("list_sessions");
+      expect(instructions).toContain("file_history");
       expect(instructions).toContain("model provider");
       const { tools } = await client.listTools();
-      expect(tools.map((tool) => tool.name)).toEqual(["search_sessions", "session_summary"]);
+      expect(tools.map((tool) => tool.name)).toEqual([
+        "search_sessions",
+        "session_summary",
+        "list_sessions",
+        "list_projects",
+        "file_history",
+      ]);
       expect(tools[0].description).toContain("past decisions");
       expect(tools[1].description).toContain("same project");
       expect(

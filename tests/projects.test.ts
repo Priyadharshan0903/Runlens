@@ -27,7 +27,7 @@ function session(id: string, cwd?: string, day = 1): SessionSummary {
 }
 
 describe("previous and next chats", () => {
-  it("follows newest-first project order, including grouped subfolders, without changing the library", () => {
+  it("pages across projects and days in the sidebar's order, without changing the library", () => {
     const project = {
       id: "/work/demo",
       name: "demo",
@@ -35,30 +35,42 @@ describe("previous and next chats", () => {
       availability: "available" as const,
     };
     const oldest = { ...session("oldest", "/work/demo", 1), project };
-    const current = { ...session("current", "/work/demo/src", 2), project };
-    const newest = { ...session("newest", "/work/demo", 3), project };
-    const unrelated = session("other-demo", "/personal/demo", 4);
+    const unrelated = session("other-demo", "/personal/demo", 2);
+    const current = { ...session("current", "/work/demo/src", 3), project };
+    const newest = { ...session("newest", "/work/demo", 4), project };
     const sessions = [oldest, unrelated, current, newest];
 
-    expect(sessionNeighbors(sessions, "current")).toEqual({
+    // Project view: the whole demo group (subfolders included), then the next project.
+    expect(sessionNeighbors(sessions, "current", "project")).toEqual({
       previous: newest,
       next: oldest,
       position: 2,
-      total: 3,
+      total: 4,
+    });
+    expect(sessionNeighbors(sessions, "oldest", "project")).toEqual({
+      previous: current,
+      next: unrelated,
+      position: 3,
+      total: 4,
+    });
+    expect(sessionNeighbors(sessions, "other-demo", "project")).toMatchObject({
+      previous: oldest,
+      next: undefined,
+      position: 4,
+    });
+
+    // Date view: newest first across every project and day.
+    expect(sessionNeighbors(sessions, "current", "date")).toEqual({
+      previous: newest,
+      next: unrelated,
+      position: 2,
+      total: 4,
+    });
+    expect(sessionNeighbors(sessions, "newest")).toMatchObject({
+      previous: undefined,
+      position: 1,
     });
     expect(sessions.map((item) => item.id)).toEqual(["oldest", "other-demo", "current", "newest"]);
-    expect(sessionNeighbors(sessions, "newest")).toEqual({
-      previous: undefined,
-      next: current,
-      position: 1,
-      total: 3,
-    });
-    expect(sessionNeighbors(sessions, "oldest")).toEqual({
-      previous: current,
-      next: undefined,
-      position: 3,
-      total: 3,
-    });
   });
 
   it("respects the chosen agent and handles a missing or single chat without wrapping", () => {
@@ -79,7 +91,7 @@ describe("previous and next chats", () => {
     expect(sessionNeighbors([], "claude")).toBeUndefined();
   });
 
-  it("uses the full project beyond sidebar and library page limits", () => {
+  it("uses the full list beyond sidebar and library page limits", () => {
     const sessions = Array.from({ length: 45 }, (_, index) => ({
       ...session(`chat-${index}`, "/work/demo"),
       updatedAt: new Date(Date.UTC(2026, 9, 1, 0, index)).toISOString(),
